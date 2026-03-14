@@ -8,7 +8,7 @@ git commt -m "commit message"
 git checkout -b branchname
 git push origin branchname
 ```
-## you can use this to check your hrml code
+## you can use this to check your html code
 ```
 npx htmlhint "**/*.html"
 ```
