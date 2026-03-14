@@ -6,5 +6,5 @@
 git add .
 git commt -m "commit message"
 git checkout -b branchname
-git push
+git push origin branchname
 ```
