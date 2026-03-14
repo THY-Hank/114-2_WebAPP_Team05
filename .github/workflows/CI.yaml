@@ -1,0 +1,19 @@
+name: PR Check
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  verify-code:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取得專案程式碼
+        uses: actions/checkout@v4
+      
+      - name: 安裝 Node.js 環境 
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 檢查 HTML 語法有沒有錯誤
+        run: npx htmlhint "**/*.html"
