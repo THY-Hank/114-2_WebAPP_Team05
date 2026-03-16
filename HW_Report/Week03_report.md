@@ -4,5 +4,5 @@ html、css練習
 
 # 第五組組員分工情況
 楊宗瀚 50% 網頁骨架、html、css
-顧庭維 xx% xxx
+顧庭維 50% html、css
 片岡佳穗 xx% xxx
