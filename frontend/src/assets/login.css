@@ -1,0 +1,71 @@
+.login-page {
+  width: 100%;
+  max-width: 400px;
+  padding: 2rem;
+}
+
+.form {
+  background: #fff;
+  padding: 2.5rem;
+  border-radius: var(--border-radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+
+.form h2 {
+  margin: 0 0 1.5rem;
+  font-size: 2rem;
+  color: var(--primary-color);
+}
+
+.form input {
+  font-family: var(--font-family);
+  outline: 0;
+  background: var(--light-gray);
+  width: 100%;
+  border: 1px solid var(--medium-gray);
+  margin: 0 0 1rem;
+  padding: 1rem;
+  box-sizing: border-box;
+  font-size: 1rem;
+  border-radius: var(--border-radius);
+}
+
+.form input:focus {
+  border-color: var(--primary-color);
+}
+
+.form .login-button {
+  font-family: var(--font-family);
+  text-transform: uppercase;
+  outline: 0;
+  background: var(--secondary-color);
+  width: 100%;
+  border: 0;
+  padding: 1rem;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  border-radius: var(--border-radius);
+  transition: background-color 0.3s ease;
+}
+
+.form .login-button:hover {
+  background: #43a047;
+}
+
+.register-link {
+  margin-top: 1.5rem;
+  font-size: 1rem;
+}
+
+.register-link a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.register-link a:hover {
+  text-decoration: underline;
+}

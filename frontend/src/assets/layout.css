@@ -1,0 +1,63 @@
+.container {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  height: 100vh;
+}
+
+.sidebar {
+  background: var(--light-gray);
+  padding: 2rem;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.user-profile {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--medium-gray);
+  margin-bottom: 1rem;
+}
+
+.user-profile h4 {
+  margin: 0 0 0.5rem 0;
+}
+
+.user-profile p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.user-profile button {
+  margin-top: 1rem;
+  width: 100%;
+  padding: 0.5rem;
+  background: var(--error-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+}
+
+.navigation ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.navigation li a {
+  display: block;
+  padding: 1rem;
+  text-decoration: none;
+  color: var(--text-color);
+  border-radius: var(--border-radius);
+}
+
+.navigation li a:hover {
+  background: var(--medium-gray);
+}
+
+.content {
+  padding: 2rem;
+  overflow-y: auto;
+}
