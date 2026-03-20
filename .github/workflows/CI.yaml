@@ -1,19 +1,46 @@
-name: PR Check
+name: Frontend CI
+
 on:
+  push:
+    branches: [ main, master ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ main, master ]
 
 jobs:
-  verify-code:
+  build-and-test:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 取得專案程式碼
+      - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: 安裝 Node.js 環境 
+
+      - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 22
+          cache: 'npm' # 自動快取 node_modules
 
-      - name: 檢查 HTML 語法有沒有錯誤
-        run: npx htmlhint "**/*.html"
+      - name: Install dependencies
+        run: npm install
+
+      - name: Code Linting
+        # 這裡會跑 oxlint 與 eslint
+        run: npm run lint
+
+      # - name: Code Formatting Check
+      #   # 檢查程式碼是否符合 prettier 規範
+      #   run: npm run format
+
+      # - name: Unit Tests
+      #   # 執行 vitest
+      #   run: npm run test:unit
+
+      # - name: Type Check & Build
+      #   # 執行 type-check 與 build-only (使用 run-p)
+      #   run: npm run build
+
+      # - name: Install Playwright Browsers
+      #   run: npx playwright install --with-deps
+      
+      # - name: E2E Tests
+      #   run: npm run test:e2e

@@ -1,0 +1,72 @@
+.upload-container {
+  padding-top: 1rem;
+  border-top: 1px solid var(--medium-gray);
+  margin-top: 1rem;
+}
+
+.file-explorer {
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+.file-explorer ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.file-explorer li {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  border-radius: var(--border-radius);
+}
+
+.file-explorer li:hover {
+  background: var(--medium-gray);
+}
+
+.file-explorer .active-file {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.code-view {
+  background: #fff;
+  padding: 2rem;
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.comments-section {
+  margin-top: 2rem;
+}
+
+.comment {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: var(--light-gray);
+  border-radius: var(--border-radius);
+}
+
+.comment-form textarea {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid var(--medium-gray);
+  border-radius: var(--border-radius);
+  resize: vertical;
+}
+
+.comment-form button {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+}
