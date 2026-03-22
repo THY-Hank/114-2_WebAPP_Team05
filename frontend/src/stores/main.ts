@@ -40,6 +40,13 @@ export const useMainStore = defineStore('main', {
         content: '<h1>Hello, World!</h1>',
         comments: [],
       },
+      {
+        id: 3,
+        projectId: 1,
+        name: 'test.c',
+        content: 'void main(){}',
+        comments: [],
+      },
     ],
     chatRooms: [
       {

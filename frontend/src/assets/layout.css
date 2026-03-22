@@ -22,6 +22,22 @@
   margin: 0 0 0.5rem 0;
 }
 
+.profile-trigger {
+  padding: 0;
+  margin: 0 0 0.5rem 0;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+
+.profile-trigger:hover {
+  color: var(--primary-color);
+}
+
 .user-profile p {
   margin: 0;
   font-size: 0.9rem;
