@@ -21,7 +21,35 @@
   border-radius: var(--border-radius);
 }
 
-.file-explorer li:hover {
+.file-explorer > ul > li {
+  padding: 0;
+}
+
+.folder-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: var(--border-radius);
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.folder-toggle:hover {
+  background: var(--medium-gray);
+}
+
+.folder-children {
+  margin-top: 0.25rem;
+  padding-left: 1rem;
+}
+
+.folder-children li:hover {
   background: var(--medium-gray);
 }
 

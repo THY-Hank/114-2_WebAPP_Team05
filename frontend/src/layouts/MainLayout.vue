@@ -1,9 +1,11 @@
 <template>
   <div class="container">
     <div class="sidebar">
-      <div v-if="store.currentUser" class="user-profile">
-        <h4>{{ store.currentUser.name }}</h4>
-        <p>{{ store.currentUser.email }}</p>
+      <div v-if="currentUser" class="user-profile">
+        <button class="profile-trigger" type="button" @click="showPersonalInfo = true">
+          {{ currentUser.name }}
+        </button>
+        <p>{{ currentUser.email }}</p>
         <button @click="logout">Logout</button>
       </div>
 
@@ -17,16 +19,25 @@
     <div class="content">
       <router-view />
     </div>
+    <PersonalInfoModal :show="showPersonalInfo" @close="showPersonalInfo = false" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useMainStore } from '@/stores/main'
 import { useRouter } from 'vue-router'
+import PersonalInfoModal from '@/components/PersonalInfoModal.vue'
+
+type CurrentUser = {
+  name: string
+  email: string
+}
 
 const store = useMainStore()
 const router = useRouter()
+const showPersonalInfo = ref(false)
+const currentUser = computed(() => store.currentUser as CurrentUser | null)
 
 onMounted(() => {
   if (!store.isLoggedIn) {

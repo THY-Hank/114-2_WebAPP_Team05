@@ -12,12 +12,28 @@
         <h3>Files</h3>
         <ul v-if="store.currentUser && store.currentUser.projects.length > 0">
           <li
-            v-for="file in store.getProjectFiles(store.currentUser.projects[0].id)"
+            v-for="file in standaloneFiles"
             :key="file.id"
             @click="selectFile(file)"
             :class="{ 'active-file': selectedFile && selectedFile.id === file.id }"
           >
             {{ file.name }}
+          </li>
+          <li>
+            <button class="folder-toggle" type="button" @click="isFolderOpen = !isFolderOpen">
+              <span>{{ isFolderOpen ? 'v' : '>' }}</span>
+              <span>src</span>
+            </button>
+            <ul v-if="isFolderOpen" class="folder-children">
+              <li
+                v-for="file in folderFiles"
+                :key="file.id"
+                @click="selectFile(file)"
+                :class="{ 'active-file': selectedFile && selectedFile.id === file.id }"
+              >
+                {{ file.name }}
+              </li>
+            </ul>
           </li>
         </ul>
       </div>
@@ -48,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useMainStore } from '@/stores/main'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -57,7 +73,24 @@ const router = useRouter()
 const route = useRoute()
 const selectedFile = ref(null)
 const newComment = ref('')
+const isFolderOpen = ref(true)
 let selectedFileObject = null
+
+const standaloneFiles = computed(() => {
+  if (!store.currentUser || store.currentUser.projects.length === 0) {
+    return []
+  }
+
+  return store.getProjectFiles(store.currentUser.projects[0].id).filter((file) => file.name === 'test.c')
+})
+
+const folderFiles = computed(() => {
+  if (!store.currentUser || store.currentUser.projects.length === 0) {
+    return []
+  }
+
+  return store.getProjectFiles(store.currentUser.projects[0].id).filter((file) => file.name !== 'test.c')
+})
 
 onMounted(() => {
   const fileName = route.query.file
