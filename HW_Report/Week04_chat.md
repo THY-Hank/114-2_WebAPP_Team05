@@ -11,6 +11,11 @@ with gemini-2.5-pro
 9. 幫我寫一個readme.md在frontend方便其他開發者查看與日後能與AI agnet繼續工作的資料
 10. package長這樣"略",幫我寫CI.yaml
 # 顧庭維
-
+1. 我想把 personal infromation.html和css整合到登入後的那個裡面，按名字可以跳出那個畫面
+2. 你只有加一個檔案，其他你還改了那些檔案?
+3. 幫我新增user id到個人頁面。name幫我寫成可以修改
+4. codeview幫我加上一個資料夾我想看會發生甚麼事
+5. 幫我把資料夾的hover改成只出現在那行
+6. 你改了哪些檔案
 # 片岡佳穗
 退選
