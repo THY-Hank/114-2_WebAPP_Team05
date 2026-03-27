@@ -3,3 +3,4 @@ Django==6.0.3
 pycryptodome==3.23.0
 sqlparse==0.5.5
 tzdata==2025.3
+python-dotenv
