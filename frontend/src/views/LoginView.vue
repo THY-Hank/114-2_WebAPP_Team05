@@ -1,15 +1,35 @@
 <template>
-  <div class="login-page">
-    <div class="form">
-      <h2>Chatdev</h2>
-      <form class="login-form" @submit.prevent="login">
-        <input type="email" placeholder="email" v-model="email" />
-        <input type="password" placeholder="password" v-model="password" />
-        <button type="submit" class="login-button">login</button>
+  <div class="register-container">
+    <div class="register-box">
+      <h2 style="text-align: center; color: var(--text-color); margin-top: 0;">Chatdev</h2>
+      <h1>登入</h1>
+      <p class="subtitle">登入你的帳號以進入專案儀表板</p>
+
+      <form @submit.prevent="login">
+        <label for="email">電子郵件</label>
+        <input 
+          type="email" 
+          id="email" 
+          name="email" 
+          autocomplete="email" 
+          placeholder="請輸入電子郵件" 
+          v-model="email" 
+        />
+
+        <label for="password">密碼</label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          autocomplete="current-password" 
+          placeholder="請輸入密碼" 
+          v-model="password" 
+        />
+
+        <button type="submit">登入</button>
       </form>
-      <p class="register-link">
-        <router-link to="/register">Create an account</router-link>
-      </p>
+
+      <p class="login-link">還沒有帳號嗎？<router-link to="/register">建立帳號</router-link></p>
     </div>
   </div>
 </template>
@@ -24,15 +44,16 @@ const password = ref('')
 const router = useRouter()
 const store = useMainStore()
 
-const login = () => {
-  if (store.login(email.value, password.value)) {
-    router.push('/main/code')
+const login = async () => {
+  const success = await store.login(email.value, password.value)
+  if (success) {
+    router.push('/projects')
   } else {
-    alert('Invalid email or password')
+    alert('電子郵件或密碼錯誤 (Invalid email or password)')
   }
 }
 </script>
 
 <style scoped>
-@import '@/assets/login.css';
+@import '@/assets/register.css';
 </style>

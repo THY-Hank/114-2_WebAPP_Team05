@@ -1,3 +1,5 @@
 *.ini
-*.txt
 node_modules/
+venv/
+.env
+.env.*

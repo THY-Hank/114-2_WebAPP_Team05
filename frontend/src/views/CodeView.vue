@@ -2,10 +2,10 @@
   <div class="code-view-container">
     <div class="code-sidebar">
       <div class="upload-container">
-        <h3>Upload File</h3>
+        <h3>Upload Files</h3>
         <form @submit.prevent="uploadFile">
-          <input type="file" @change="onFileChange" />
-          <button type="submit">Upload</button>
+          <input type="file" multiple @change="onFileChange" ref="fileInput" />
+          <button type="submit">Upload All</button>
         </form>
       </div>
       <div class="file-explorer">
@@ -37,10 +37,20 @@
           </li>
         </ul>
       </div>
+      <div class="invite-container">
+        <h3>Invite Member</h3>
+        <div class="invite-form">
+          <input v-model="newMemberEmail" placeholder="User Email" @keyup.enter="handleInvite" />
+          <button @click="handleInvite">Add</button>
+        </div>
+      </div>
     </div>
     <div class="code-content">
       <div v-if="selectedFile" class="code-view">
-        <h3>{{ selectedFile.name }}</h3>
+        <div class="code-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <h3>{{ selectedFile.name }}</h3>
+          <button class="delete-file-btn" @click="handleDeleteFile">Delete File</button>
+        </div>
         <pre><code>{{ selectedFile.content }}</code></pre>
         <div class="comments-section">
           <h4>Comments</h4>
@@ -64,32 +74,41 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useMainStore } from '@/stores/main'
 import { useRoute, useRouter } from 'vue-router'
 
 const store = useMainStore()
 const router = useRouter()
 const route = useRoute()
-const selectedFile = ref(null)
+const selectedFile = ref<any>(null)
 const newComment = ref('')
 const isFolderOpen = ref(true)
-let selectedFileObject = null
+
+let selectedFilesList: File[] = []
+const fileInput = ref<any>(null)
+
+const projectId = computed(() => Number(route.params.projectId))
+const newMemberEmail = ref('')
+
+watch(() => projectId.value, (newId) => {
+  if (newId) {
+    store.loadProjectFiles(newId)
+  }
+}, { immediate: true })
 
 const standaloneFiles = computed(() => {
-  if (!store.currentUser || store.currentUser.projects.length === 0) {
+  if (!store.currentUser) {
     return []
   }
-
-  return store.getProjectFiles(store.currentUser.projects[0].id).filter((file) => file.name === 'test.c')
+  return store.getProjectFiles(projectId.value).filter((file: any) => file.name === 'test.c')
 })
 
 const folderFiles = computed(() => {
-  if (!store.currentUser || store.currentUser.projects.length === 0) {
+  if (!store.currentUser) {
     return []
   }
-
-  return store.getProjectFiles(store.currentUser.projects[0].id).filter((file) => file.name !== 'test.c')
+  return store.getProjectFiles(projectId.value).filter((file: any) => file.name !== 'test.c')
 })
 
 onMounted(() => {
@@ -102,29 +121,46 @@ onMounted(() => {
   }
 })
 
-const onFileChange = (e) => {
-  const file = e.target.files[0]
-  if (file) {
-    selectedFileObject = file
-  }
+const onFileChange = (e: any) => {
+  selectedFilesList = Array.from(e.target?.files || [])
 }
 
 const uploadFile = () => {
-  if (selectedFileObject && store.currentUser && store.currentUser.projects.length > 0) {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      store.addFile(store.currentUser.projects[0].id, {
-        name: selectedFileObject.name,
-        content: e.target.result,
-      })
+  if (selectedFilesList.length > 0 && store.currentUser) {
+    selectedFilesList.forEach((file) => {
+      const reader = new FileReader()
+      reader.onload = (e: any) => {
+        store.addFile(projectId.value, {
+          name: file.name,
+          content: e.target?.result as string,
+        })
+      }
+      reader.readAsText(file)
+    })
+    
+    // Clear selections
+    selectedFilesList = []
+    if (fileInput.value) {
+      fileInput.value.value = ''
     }
-    reader.readAsText(selectedFileObject)
   } else {
-    alert('Please select a file and make sure a project is available.')
+    alert('Please select at least one file to upload.')
   }
 }
 
-const selectFile = (file) => {
+const handleInvite = async () => {
+  if (newMemberEmail.value.trim() !== '') {
+    const success = await store.addProjectMember(projectId.value, newMemberEmail.value)
+    if (success) {
+      alert('Member invited successfully!')
+      newMemberEmail.value = ''
+    } else {
+      alert('Failed to invite member. Make sure the email is correct and exists.')
+    }
+  }
+}
+
+const selectFile = (file: any) => {
   selectedFile.value = file
 }
 
@@ -134,21 +170,82 @@ const addComment = () => {
     newComment.value = ''
   }
 }
+
+const handleDeleteFile = async () => {
+  if (confirm(`Are you sure you want to delete ${selectedFile.value.name}?`)) {
+    const success = await store.deleteFile(selectedFile.value.id)
+    if (success) {
+      selectedFile.value = null
+    } else {
+      alert('Failed to delete file. You may lack sufficient permissions.')
+    }
+  }
+}
 </script>
 
 <style scoped>
 @import '@/assets/code.css';
 
 .code-view-container {
-  display: grid;
-  grid-template-columns: 200px 1fr;
+  display: flex;
+  flex-direction: row;
   gap: 2rem;
   height: 100%;
+  align-items: flex-start;
 }
 .code-sidebar {
+  width: 250px;
+  flex-shrink: 0;
   background: #fdfdfd;
   padding: 1rem;
   border-radius: var(--border-radius);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.invite-container h3 {
+  margin-bottom: 0.5rem;
+}
+
+.invite-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.delete-file-btn {
+  background: var(--dark-red, #dc3545);
+  color: white;
+  padding: 0.3rem 0.8rem;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+}
+.delete-file-btn:hover { opacity: 0.9; }
+
+.invite-form input {
+  padding: 0.4rem;
+  border: 1px solid var(--medium-gray);
+  border-radius: 4px;
+}
+
+.invite-form button {
+  padding: 0.4rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .code-view-container {
+    flex-direction: column;
+  }
+  .code-sidebar {
+    width: 100%;
+  }
 }
 </style>

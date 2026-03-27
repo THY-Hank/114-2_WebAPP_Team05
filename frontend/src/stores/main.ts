@@ -1,68 +1,15 @@
 import { defineStore } from 'pinia'
+import { authApi } from '@/api/auth'
+import { projectsApi } from '@/api/projects'
+import { chatApi } from '@/api/chat'
 
 export const useMainStore = defineStore('main', {
   state: () => ({
-    users: [
-      {
-        id: 1,
-        name: 'Alice',
-        email: 'alice@example.com',
-        password: 'password',
-        projects: [
-          { id: 1, name: 'Project Alpha' },
-          { id: 2, name: 'Project Beta' },
-        ],
-      },
-      {
-        id: 2,
-        name: 'Bob',
-        email: 'bob@example.com',
-        password: 'password',
-        projects: [{ id: 3, name: 'Project Gamma' }],
-      },
-    ],
-    currentUser: null,
-    files: [
-      {
-        id: 1,
-        projectId: 1,
-        name: 'main.js',
-        content: 'console.log("Hello, World!");',
-        comments: [
-          { id: 1, author: 'Alice', text: 'This looks good.' },
-          { id: 2, author: 'Bob', text: 'Could you add a comment explaining this line?' },
-        ],
-      },
-      {
-        id: 2,
-        projectId: 1,
-        name: 'index.html',
-        content: '<h1>Hello, World!</h1>',
-        comments: [],
-      },
-      {
-        id: 3,
-        projectId: 1,
-        name: 'test.c',
-        content: 'void main(){}',
-        comments: [],
-      },
-    ],
-    chatRooms: [
-      {
-        id: 1,
-        name: 'Project Alpha',
-        messages: [
-          { id: 1, author: 'Alice', text: 'Hey everyone!' },
-          { id: 2, author: 'Bob', text: 'Hi Alice!' },
-        ],
-      },
-      {
-        id: 2,
-        name: 'Private - Charlie',
-        messages: [],
-      },
-    ],
+    users: [],
+    currentUser: null as any,
+    files: [] as any[],
+    chatRooms: [] as any[],
+    invitations: [] as any[],
   }),
   getters: {
     isLoggedIn: (state) => !!state.currentUser,
@@ -72,81 +19,223 @@ export const useMainStore = defineStore('main', {
       }
       return []
     },
-    getProjectFiles: (state) => (projectId) => {
+    getProjectFiles: (state) => (projectId: number) => {
       return state.files.filter((file) => file.projectId === projectId)
     },
   },
   actions: {
-    login(email, password) {
-      const user = this.users.find((user) => user.email === email && user.password === password)
-      if (user) {
-        this.currentUser = user
-        return true
+    async loadDashboardData() {
+      if (!this.currentUser) return;
+      try {
+        let res = await authApi.fetchMe()
+        if (res.ok) {
+          const userData = await res.json()
+          this.currentUser.id = userData.id
+          this.currentUser.projects = userData.projects || []
+        }
+        res = await chatApi.fetchChatRooms()
+        if (res.ok) {
+          this.chatRooms = await res.json()
+        }
+        res = await projectsApi.fetchInvitations()
+        if (res.ok) {
+          this.invitations = await res.json()
+        }
+      } catch (err) {
+        console.error("Failed to load dashboard data", err)
+      }
+    },
+    async loadProjectFiles(projectId: number) {
+      try {
+        const res = await projectsApi.fetchProjectFiles(projectId)
+        if (res.ok) {
+          const fetchedFiles = await res.json()
+          this.files = [
+            ...this.files.filter((f) => f.projectId !== projectId),
+            ...fetchedFiles
+          ]
+        }
+      } catch (err) {
+        console.error("Failed to load project files", err)
+      }
+    },
+    async login(email: string, password: string) {
+      try {
+        const response = await authApi.login(email, password)
+        const data = await response.json()
+        if (response.ok) {
+          this.currentUser = data.user
+          await this.loadDashboardData()
+          return true
+        }
+        console.error(data.error)
+        return false
+      } catch (err) {
+        console.error('Login error:', err)
+        return false
+      }
+    },
+    async logout() {
+      try {
+        await authApi.logout()
+        this.currentUser = null
+        this.files = []
+        this.chatRooms = []
+        this.invitations = []
+      } catch (err) {
+        console.error('Logout error:', err)
+      }
+    },
+    async register(name: string, email: string, password: string) {
+      try {
+        const response = await authApi.register(name, email, password)
+        const data = await response.json()
+        if (response.ok) {
+          return true
+        }
+        console.error(data.error)
+        return false
+      } catch (err) {
+        console.error('Register error:', err)
+        return false
+      }
+    },
+    async addFile(projectId: number, file: { name: string, content: string }) {
+      try {
+        const response = await projectsApi.addFile(projectId, file)
+        if (response.ok) {
+          const newFile = await response.json()
+          newFile.projectId = projectId // 補上遺失的 projectId 屬性供 getProjectFiles 篩選
+          this.files.push(newFile)
+        }
+      } catch (err) {
+        console.error("Add file error", err)
+      }
+    },
+    async addComment(fileId: number, comment: string) {
+      try {
+        const response = await projectsApi.addComment(fileId, comment)
+        if (response.ok) {
+          const newComment = await response.json()
+          const file = this.files.find((f) => f.id === fileId)
+          if (file) {
+            file.comments.push(newComment)
+          }
+        }
+      } catch (err) {
+        console.error("Add comment error", err)
+      }
+    },
+    async createProject(name: string) {
+      try {
+        const res = await projectsApi.createProject(name)
+        if (res.ok) {
+          const newProj = await res.json()
+          this.currentUser.projects.push(newProj)
+          return true
+        }
+      } catch (err) {
+        console.error("Create project error", err)
       }
       return false
     },
-    logout() {
-      this.currentUser = null
-    },
-    register(name, email, password) {
-      const newUser = {
-        id: this.users.length + 1,
-        name,
-        email,
-        password,
-        projects: [],
+    async addProjectMember(projectId: number, email: string) {
+      try {
+        const res = await projectsApi.addProjectMember(projectId, email)
+        return res.ok;
+      } catch (err) {
+        console.error("Add project member error", err)
       }
-      this.users.push(newUser)
+      return false
     },
-    addFile(projectId, file) {
-      const newFile = {
-        id: this.files.length + 1,
-        projectId,
-        name: file.name,
-        content: file.content,
-        comments: [],
-      }
-      this.files.push(newFile)
-    },
-    addComment(fileId, comment) {
-      const file = this.files.find((f) => f.id === fileId)
-      if (file) {
-        const newComment = {
-          id: file.comments.length + 1,
-          author: this.currentUser.name,
-          text: comment,
+    async fetchInvitations() {
+      try {
+        const res = await projectsApi.fetchInvitations()
+        if (res.ok) {
+          this.invitations = await res.json()
         }
-        file.comments.push(newComment)
+      } catch (err) {
+        console.error("Fetch invitations error", err)
       }
     },
-    addChatRoom(name) {
-      const newRoom = {
-        id: this.chatRooms.length + 1,
-        name,
-        messages: [],
-      }
-      this.chatRooms.push(newRoom)
-    },
-    addChatMessage(roomId, message) {
-      const room = this.chatRooms.find((r) => r.id === roomId)
-      if (room) {
-        const newMessage = {
-          id: room.messages.length + 1,
-          author: this.currentUser.name,
-          text: message,
+    async respondInvitation(invitationId: number, action: 'accept' | 'decline') {
+      try {
+        const res = await projectsApi.respondInvitation(invitationId, action)
+        if (res.ok) {
+          this.invitations = this.invitations.filter((inv) => inv.id !== invitationId)
+          if (action === 'accept') {
+            await this.loadDashboardData() // Reload projects into currentUser bounding
+          }
+          return true
         }
-        room.messages.push(newMessage)
+      } catch (err) {
+        console.error("Respond invitation error", err)
+      }
+      return false
+    },
+    async deleteFile(fileId: number) {
+      try {
+        const response = await projectsApi.deleteFile(fileId)
+        if (response.ok) {
+          this.files = this.files.filter((f: any) => f.id !== fileId)
+          return true
+        }
+      } catch (err) {
+        console.error("Delete file error", err)
+      }
+      return false
+    },
+    async deleteProject(projectId: number) {
+      try {
+        const response = await projectsApi.deleteProject(projectId)
+        if (response.ok) {
+          if (this.currentUser) {
+            this.currentUser.projects = this.currentUser.projects.filter((p: any) => p.id !== projectId)
+          }
+          return true
+        }
+      } catch (err) {
+        console.error("Delete project error", err)
+      }
+      return false
+    },
+    async addChatRoom(name: string) {
+      try {
+        const response = await chatApi.addChatRoom(name)
+        if (response.ok) {
+          const newRoom = await response.json()
+          this.chatRooms.push(newRoom)
+        }
+      } catch (err) {
+        console.error("Add chatroom error", err)
       }
     },
-    addCodeSnippetMessage(roomId, codeSnippet) {
-      const room = this.chatRooms.find((r) => r.id === roomId)
-      if (room) {
-        const newMessage = {
-          id: room.messages.length + 1,
-          author: this.currentUser.name,
-          codeSnippet,
+    async addChatMessage(roomId: number, message: string) {
+      try {
+        const response = await chatApi.addChatMessage(roomId, message)
+        if (response.ok) {
+          const newMsg = await response.json()
+          const room = this.chatRooms.find((r) => r.id === roomId)
+          if (room) {
+            room.messages.push(newMsg)
+          }
         }
-        room.messages.push(newMessage)
+      } catch (err) {
+        console.error("Add chat message error", err)
+      }
+    },
+    async addCodeSnippetMessage(roomId: number, codeSnippet: { fileName: string, line?: number }) {
+      try {
+        const response = await chatApi.addCodeSnippetMessage(roomId, codeSnippet)
+        if (response.ok) {
+          const newMsg = await response.json()
+          const room = this.chatRooms.find((r) => r.id === roomId)
+          if (room) {
+            room.messages.push(newMsg)
+          }
+        }
+      } catch (err) {
+        console.error("Add code snippet error", err)
       }
     },
   },

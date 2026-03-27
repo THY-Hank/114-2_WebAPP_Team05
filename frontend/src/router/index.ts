@@ -10,7 +10,7 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/main/code',
+      redirect: '/login',
     },
     {
       path: '/login',
@@ -23,13 +23,33 @@ const router = createRouter({
       component: RegisterView,
     },
     {
-      path: '/main',
+      path: '/',
       component: MainLayout,
       children: [
         {
-          path: 'code',
+          path: 'projects',
+          name: 'projects',
+          component: () => import('../views/ProjectListView.vue'),
+        },
+        {
+          path: 'projects/new',
+          name: 'createProject',
+          component: () => import('../views/CreateProjectView.vue'),
+        },
+        {
+          path: 'projects/:projectId/code',
           name: 'code',
           component: CodeView,
+        },
+        {
+          path: 'projects/:projectId/settings',
+          name: 'projectSettings',
+          component: () => import('../views/ProjectSettingsView.vue'),
+        },
+        {
+          path: 'invitations',
+          name: 'invitations',
+          component: () => import('../views/InvitationsView.vue'),
         },
         {
           path: 'chat',

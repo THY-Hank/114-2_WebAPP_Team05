@@ -11,8 +11,17 @@
 
       <nav class="navigation">
         <ul>
-          <li><router-link to="/main/code">Code</router-link></li>
-          <li><router-link to="/main/chat">Chat</router-link></li>
+          <li><router-link to="/projects">Project Dashboard</router-link></li>
+          <li><router-link to="/projects/new">New Project</router-link></li>
+          <li v-if="projectId"><router-link :to="`/projects/${projectId}/code`">Current Code View</router-link></li>
+          <li v-if="projectId"><router-link :to="`/projects/${projectId}/settings`">Project Settings</router-link></li>
+          <li>
+            <router-link to="/invitations">
+              Invitations Inbox
+              <span v-if="store.invitations.length" class="badge">({{ store.invitations.length }})</span>
+            </router-link>
+          </li>
+          <li><router-link to="/chat">Global Chatroom</router-link></li>
         </ul>
       </nav>
     </div>
@@ -26,7 +35,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useMainStore } from '@/stores/main'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import PersonalInfoModal from '@/components/PersonalInfoModal.vue'
 
 type CurrentUser = {
@@ -36,8 +45,10 @@ type CurrentUser = {
 
 const store = useMainStore()
 const router = useRouter()
+const route = useRoute()
 const showPersonalInfo = ref(false)
 const currentUser = computed(() => store.currentUser as CurrentUser | null)
+const projectId = computed(() => route.params.projectId)
 
 onMounted(() => {
   if (!store.isLoggedIn) {
