@@ -1,6 +1,7 @@
 <template>
   <div class="register-container">
     <div class="register-box">
+      <h2 style="text-align: center; color: var(--text-color); margin-top: 0;">Chatdev</h2>
       <h1>建立帳號</h1>
       <p class="subtitle">註冊你的帳號以開始使用聊天室</p>
 
@@ -55,14 +56,18 @@ const confirmPassword = ref('')
 const router = useRouter()
 const store = useMainStore()
 
-const register = () => {
+const register = async () => {
   if (password.value !== confirmPassword.value) {
     alert('Passwords do not match')
     return
   }
   if (username.value && email.value && password.value) {
-    store.register(username.value, email.value, password.value)
-    router.push('/login')
+    const success = await store.register(username.value, email.value, password.value)
+    if (success) {
+      router.push('/login')
+    } else {
+      alert('Registration failed. Check if email already exists or valid inputs are provided.')
+    }
   } else {
     alert('Please fill in all fields')
   }

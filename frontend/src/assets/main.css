@@ -15,8 +15,7 @@ body {
   font-family: var(--font-family);
   background-color: var(--background-color);
   color: var(--text-color);
-  display: grid;
-  place-items: center;
   min-height: 100vh;
   margin: 0;
+  overflow-x: hidden;
 }

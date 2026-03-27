@@ -1,15 +1,21 @@
 .container {
-  display: grid;
-  grid-template-columns: 250px 1fr;
+  display: flex;
+  flex-direction: row;
   height: 100vh;
+  width: 100vw;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .sidebar {
+  width: 250px;
+  flex-shrink: 0;
   background: var(--light-gray);
   padding: 2rem;
   box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
+  z-index: 10;
 }
 
 .user-profile {
@@ -59,6 +65,9 @@
   list-style: none;
   padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .navigation li a {
@@ -67,6 +76,7 @@
   text-decoration: none;
   color: var(--text-color);
   border-radius: var(--border-radius);
+  transition: background 0.2s;
 }
 
 .navigation li a:hover {
@@ -74,6 +84,32 @@
 }
 
 .content {
+  flex-grow: 1;
   padding: 2rem;
   overflow-y: auto;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .sidebar {
+    width: 100%;
+    height: auto;
+    padding: 1rem;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+  .navigation ul {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .navigation li {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+  .content {
+    padding: 1rem;
+  }
 }

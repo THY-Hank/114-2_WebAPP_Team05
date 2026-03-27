@@ -53,12 +53,12 @@ import ShareModal from '@/components/ShareModal.vue'
 const store = useMainStore()
 const router = useRouter()
 
-const selectedRoom = ref(null)
+const selectedRoom = ref<any>(null)
 const newRoomName = ref('')
 const newMessage = ref('')
 const showShareModal = ref(false)
 
-const selectChatRoom = (room) => {
+const selectChatRoom = (room: any) => {
   selectedRoom.value = room
 }
 
@@ -76,18 +76,17 @@ const sendMessage = () => {
   }
 }
 
-const viewCodeSnippet = (codeSnippet) => {
+const viewCodeSnippet = (codeSnippet: any) => {
   router.push({
     name: 'code',
     query: { file: codeSnippet.fileName, line: codeSnippet.line },
   })
 }
 
-const handleShare = (file) => {
+const handleShare = (file: any) => {
   if (selectedRoom.value) {
     store.addCodeSnippetMessage(selectedRoom.value.id, {
-      fileName: file.name,
-      content: file.content,
+      fileName: file.name
     })
   }
   showShareModal.value = false

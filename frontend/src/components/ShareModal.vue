@@ -34,7 +34,7 @@ const emit = defineEmits(['close', 'share'])
 
 const store = useMainStore()
 const files = computed(() => store.files)
-const selectedFile = ref(null)
+const selectedFile = ref<any>(null)
 
 const share = () => {
   if (selectedFile.value) {
