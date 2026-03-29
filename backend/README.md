@@ -72,3 +72,15 @@
 1. 開啟虛擬環境: 使用位於根目錄的 `venv` (`../venv/Scripts/activate`)。
 2. 啟動伺服器: 在這層目錄下執行 `python manage.py runserver 8001` (搭配前端最新的 proxy 設定，伺服器請架設在 8001 port)。
 3. 如果 `db.sqlite3` 變更或不存在，需執行 `python manage.py migrate`。
+
+
+
+## superuser
+
+If you need an admin account, create one with:
+
+```powershell
+python manage.py createsuperuser
+```
+
+If you need to reset a superuser password, use Django shell instead of storing credentials in this README.
