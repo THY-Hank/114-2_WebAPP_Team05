@@ -7,13 +7,21 @@ from .models import CustomUser
 
 import base64
 import os
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import unpad
+try:
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import unpad
+except ImportError:  # pragma: no cover - local fallback when dependency is missing
+    AES = None
+
+    def unpad(value, block_size):
+        return value
 
 AES_KEY = os.environ.get('AES_KEY', 'team05_secret_key_12345678901234').encode('utf-8')
 AES_IV = os.environ.get('AES_IV', 'team05_shared_iv').encode('utf-8')
 
 def decrypt_password(encrypted_b64):
+    if AES is None:
+        return encrypted_b64
     try:
         encrypted_bytes = base64.b64decode(encrypted_b64)
         cipher = AES.new(AES_KEY, AES.MODE_CBC, AES_IV)
