@@ -30,11 +30,14 @@ class FileComment(models.Model):
         return f"Comment by {self.author} on {self.file.name}"
 
 class ChatRoom(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='chatrooms', null=True, blank=True)
     name = models.CharField(max_length=255)
     members = models.ManyToManyField(User, related_name='chatrooms', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
+        if self.project_id:
+            return f"{self.project.name} - {self.name}"
         return self.name
 
 class ChatMessage(models.Model):

@@ -45,33 +45,47 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useMainStore } from '@/stores/main'
 import ShareModal from '@/components/ShareModal.vue'
 
 const store = useMainStore()
 const router = useRouter()
+const route = useRoute()
 
 const selectedRoom = ref<any>(null)
 const newRoomName = ref('')
 const newMessage = ref('')
 const showShareModal = ref(false)
+const projectId = computed(() => Number(route.params.projectId))
+
+watch(() => projectId.value, async (newProjectId) => {
+  if (!newProjectId) {
+    selectedRoom.value = null
+    store.chatRooms = []
+    return
+  }
+
+  await store.loadProjectChatRooms(newProjectId)
+  selectedRoom.value = store.chatRooms[0] || null
+}, { immediate: true })
 
 const selectChatRoom = (room: any) => {
   selectedRoom.value = room
 }
 
-const createChatRoom = () => {
+const createChatRoom = async () => {
   if (newRoomName.value.trim() !== '') {
-    store.addChatRoom(newRoomName.value)
+    await store.addChatRoom(projectId.value, newRoomName.value)
+    selectedRoom.value = store.chatRooms[store.chatRooms.length - 1] || selectedRoom.value
     newRoomName.value = ''
   }
 }
 
-const sendMessage = () => {
+const sendMessage = async () => {
   if (newMessage.value.trim() !== '' && selectedRoom.value) {
-    store.addChatMessage(selectedRoom.value.id, newMessage.value)
+    await store.addChatMessage(projectId.value, selectedRoom.value.id, newMessage.value)
     newMessage.value = ''
   }
 }
@@ -79,13 +93,14 @@ const sendMessage = () => {
 const viewCodeSnippet = (codeSnippet: any) => {
   router.push({
     name: 'code',
+    params: { projectId: projectId.value },
     query: { file: codeSnippet.fileName, line: codeSnippet.line },
   })
 }
 
 const handleShare = (file: any) => {
   if (selectedRoom.value) {
-    store.addCodeSnippetMessage(selectedRoom.value.id, {
+    store.addCodeSnippetMessage(projectId.value, selectedRoom.value.id, {
       fileName: file.name
     })
   }

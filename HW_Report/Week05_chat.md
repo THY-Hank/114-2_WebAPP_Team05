@@ -16,11 +16,16 @@ with gemini-3.1-pro
 14. 邀情成員受邀人要有個接受邀請的頁面可以決定要不要加入專案
 15. 我完成CI流程，前後端都要
 # 顧庭維
+with chatpgt 5.4 plus
 1. 我想利用Django寫這專案的後端，我想知道步驟
 2. 後端架構有了，我該怎麼把前端資料合併至資料庫
 3. 我忘記git pull，協助我merge一下兩邊的資料
 4. venv裡面的python和其他套件版本有無問題
 5. 我想在Django創一個superuser
 6. 修改superuser的password指令是甚麼
+7. 幫我找一下chatroom的程式碼pipline
+8. 我想將chatroom改成private，不是大家都看的到的，你先不要改，先跟我說流程
+9. 先來把chatroom先跟project綁一起
+10. 再來給chatroom上權限，非參與者不可access
 # 片岡佳穗
 退選

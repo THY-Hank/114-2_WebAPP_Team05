@@ -52,7 +52,7 @@ const router = createRouter({
           component: () => import('../views/InvitationsView.vue'),
         },
         {
-          path: 'chat',
+          path: 'projects/:projectId/chat',
           name: 'chat',
           component: ChatView,
         },
