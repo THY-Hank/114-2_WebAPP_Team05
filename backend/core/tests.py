@@ -19,7 +19,7 @@ class CoreAPITests(TestCase):
         self.code_file = CodeFile.objects.create(project=self.project, name='test.js', content='console.log("hello");')
         
         # 建立測試聊天室
-        self.chat_room = ChatRoom.objects.create(name='Test Room')
+        self.chat_room = ChatRoom.objects.create(name='Test Room', project=self.project)
         self.chat_room.members.add(self.user)
 
     def test_get_user_me(self):
@@ -64,7 +64,7 @@ class CoreAPITests(TestCase):
 
     def test_create_chatroom(self):
         response = self.client.post(
-            reverse('api_chatrooms'),
+            reverse('api_project_chatrooms', args=[self.project.id]),
             data=json.dumps({'name': 'New Room'}),
             content_type='application/json'
         )
@@ -72,7 +72,7 @@ class CoreAPITests(TestCase):
         self.assertTrue(ChatRoom.objects.filter(name='New Room').exists())
 
     def test_get_chatrooms(self):
-        response = self.client.get(reverse('api_chatrooms'))
+        response = self.client.get(reverse('api_project_chatrooms', args=[self.project.id]))
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(len(data), 1)
@@ -80,7 +80,7 @@ class CoreAPITests(TestCase):
 
     def test_add_chat_message(self):
         response = self.client.post(
-            reverse('api_add_chat_message', args=[self.chat_room.id]),
+            reverse('api_add_chat_message', args=[self.project.id, self.chat_room.id]),
             data=json.dumps({'text': 'Hello world!'}),
             content_type='application/json'
         )
@@ -90,7 +90,7 @@ class CoreAPITests(TestCase):
 
     def test_add_chat_snippet(self):
         response = self.client.post(
-            reverse('api_add_chat_message', args=[self.chat_room.id]),
+            reverse('api_add_chat_message', args=[self.project.id, self.chat_room.id]),
             data=json.dumps({'codeSnippetFile': 'test.js', 'codeSnippetLine': 5}),
             content_type='application/json'
         )
