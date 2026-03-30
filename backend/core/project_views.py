@@ -2,7 +2,7 @@ import json
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from .models import Project, CodeFile, FileComment
+from .models import Project, CodeFile, FileComment, ChatRoom
 from user.models import CustomUser
 from .user_views import login_check
 
@@ -18,6 +18,8 @@ def project_list_view(request):
         
         new_project = Project.objects.create(name=name, owner=request.user)
         new_project.members.add(request.user)
+        default_room = ChatRoom.objects.create(project=new_project, name='General')
+        default_room.members.add(request.user)
         return JsonResponse({'id': new_project.id, 'name': new_project.name, 'owner_id': new_project.owner_id}, status=201)
     else:
         # GET is already handled by user/me/ mostly, but provided here as REST standard
@@ -117,6 +119,8 @@ def respond_invitation_view(request, invitation_id):
     if action == 'accept':
         invitation.status = 'accepted'
         invitation.project.members.add(request.user)
+        for room in invitation.project.chatrooms.all():
+            room.members.add(request.user)
         invitation.save()
         return JsonResponse({'status': 'accepted', 'project_id': invitation.project.id}, status=200)
     elif action == 'decline':

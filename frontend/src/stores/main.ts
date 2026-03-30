@@ -33,10 +33,6 @@ export const useMainStore = defineStore('main', {
           this.currentUser.id = userData.id
           this.currentUser.projects = userData.projects || []
         }
-        res = await chatApi.fetchChatRooms()
-        if (res.ok) {
-          this.chatRooms = await res.json()
-        }
         res = await projectsApi.fetchInvitations()
         if (res.ok) {
           this.invitations = await res.json()
@@ -199,9 +195,22 @@ export const useMainStore = defineStore('main', {
       }
       return false
     },
-    async addChatRoom(name: string) {
+    async loadProjectChatRooms(projectId: number) {
       try {
-        const response = await chatApi.addChatRoom(name)
+        const response = await chatApi.fetchChatRooms(projectId)
+        if (response.ok) {
+          this.chatRooms = await response.json()
+        } else {
+          this.chatRooms = []
+        }
+      } catch (err) {
+        this.chatRooms = []
+        console.error("Load chatrooms error", err)
+      }
+    },
+    async addChatRoom(projectId: number, name: string) {
+      try {
+        const response = await chatApi.addChatRoom(projectId, name)
         if (response.ok) {
           const newRoom = await response.json()
           this.chatRooms.push(newRoom)
@@ -210,9 +219,9 @@ export const useMainStore = defineStore('main', {
         console.error("Add chatroom error", err)
       }
     },
-    async addChatMessage(roomId: number, message: string) {
+    async addChatMessage(projectId: number, roomId: number, message: string) {
       try {
-        const response = await chatApi.addChatMessage(roomId, message)
+        const response = await chatApi.addChatMessage(projectId, roomId, message)
         if (response.ok) {
           const newMsg = await response.json()
           const room = this.chatRooms.find((r) => r.id === roomId)
@@ -224,9 +233,9 @@ export const useMainStore = defineStore('main', {
         console.error("Add chat message error", err)
       }
     },
-    async addCodeSnippetMessage(roomId: number, codeSnippet: { fileName: string, line?: number }) {
+    async addCodeSnippetMessage(projectId: number, roomId: number, codeSnippet: { fileName: string, line?: number }) {
       try {
-        const response = await chatApi.addCodeSnippetMessage(roomId, codeSnippet)
+        const response = await chatApi.addCodeSnippetMessage(projectId, roomId, codeSnippet)
         if (response.ok) {
           const newMsg = await response.json()
           const room = this.chatRooms.find((r) => r.id === roomId)

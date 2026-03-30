@@ -86,7 +86,15 @@ const projectFilesCount = computed(() => {
   return store.files.filter((file) => projectIds.has(file.projectId)).length
 })
 
-const chatRoomCount = computed(() => store.chatRooms.length)
+const chatRoomCount = computed(() => {
+  const rooms = store.chatRooms as Array<{ projectId?: number }>
+  if (!user.value) {
+    return 0
+  }
+
+  const projectIds = new Set(user.value.projects.map((project) => project.id))
+  return rooms.filter((room) => room.projectId && projectIds.has(room.projectId)).length
+})
 
 const saveName = () => {
   const trimmedName = editableName.value.trim()

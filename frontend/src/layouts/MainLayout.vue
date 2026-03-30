@@ -21,7 +21,7 @@
               <span v-if="store.invitations.length" class="badge">({{ store.invitations.length }})</span>
             </router-link>
           </li>
-          <li><router-link to="/chat">Global Chatroom</router-link></li>
+          <li v-if="projectId"><router-link :to="`/projects/${projectId}/chat`">Project Chatroom</router-link></li>
         </ul>
       </nav>
     </div>

@@ -11,6 +11,6 @@ urlpatterns = [
     path('files/<int:file_id>/comments/', project_views.add_file_comment_view, name='api_add_file_comment'),
     path('invitations/', project_views.invitation_list_view, name='api_invitation_list'),
     path('invitations/<int:invitation_id>/respond/', project_views.respond_invitation_view, name='api_invitation_respond'),
-    path('chatrooms/', chat_views.chatrooms_view, name='api_chatrooms'),
-    path('chatrooms/<int:room_id>/messages/', chat_views.add_chat_message_view, name='api_add_chat_message'),
+    path('projects/<int:project_id>/chatrooms/', chat_views.project_chatrooms_view, name='api_project_chatrooms'),
+    path('projects/<int:project_id>/chatrooms/<int:room_id>/messages/', chat_views.add_chat_message_view, name='api_add_chat_message'),
 ]
