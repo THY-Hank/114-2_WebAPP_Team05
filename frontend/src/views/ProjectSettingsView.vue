@@ -22,6 +22,7 @@
 </template>
 
 <script setup lang="ts">
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useMainStore } from '@/stores/main'

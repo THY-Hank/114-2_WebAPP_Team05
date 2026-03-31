@@ -3,11 +3,11 @@ export const chatApi = {
     return fetch(`/api/projects/${projectId}/chatrooms/`)
   },
 
-  addChatRoom: async (projectId: number, name: string) => {
+  addChatRoom: async (projectId: number, name: string, memberIds?: number[]) => {
     return fetch(`/api/projects/${projectId}/chatrooms/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name, memberIds })
     })
   },
 

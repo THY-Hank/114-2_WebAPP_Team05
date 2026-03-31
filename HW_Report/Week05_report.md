@@ -3,8 +3,9 @@ Django
 # 額外找了與當週上課的主題相關的程式技術
 1.AES-CBC加密，保護使用者密碼
 2.Rest API，前後端連接
+3.Django Channels，ASGI伺服器 即時通訊
 # 第五組組員分工情況
-楊宗瀚 50%  Django建置、專案功能建立、註冊登入加密流程
+楊宗瀚 50%  Django建置、專案功能建立、註冊登入加密流程、即時通訊
 
 顧庭維 50%  合併前端暫存資料至資料庫、新增superuser、chatroom和project做結合，讓chatroom只有參加者可以看到
 

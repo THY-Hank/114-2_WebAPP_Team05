@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { defineStore } from 'pinia'
 import { authApi } from '@/api/auth'
 import { projectsApi } from '@/api/projects'
@@ -10,6 +11,7 @@ export const useMainStore = defineStore('main', {
     files: [] as any[],
     chatRooms: [] as any[],
     invitations: [] as any[],
+    chatSocket: null as WebSocket | null,
   }),
   getters: {
     isLoggedIn: (state) => !!state.currentUser,
@@ -78,6 +80,10 @@ export const useMainStore = defineStore('main', {
         this.files = []
         this.chatRooms = []
         this.invitations = []
+        if (this.chatSocket) {
+          this.chatSocket.close()
+          this.chatSocket = null
+        }
       } catch (err) {
         console.error('Logout error:', err)
       }
@@ -208,9 +214,9 @@ export const useMainStore = defineStore('main', {
         console.error("Load chatrooms error", err)
       }
     },
-    async addChatRoom(projectId: number, name: string) {
+    async addChatRoom(projectId: number, name: string, memberIds?: number[]) {
       try {
-        const response = await chatApi.addChatRoom(projectId, name)
+        const response = await chatApi.addChatRoom(projectId, name, memberIds)
         if (response.ok) {
           const newRoom = await response.json()
           this.chatRooms.push(newRoom)
@@ -226,7 +232,10 @@ export const useMainStore = defineStore('main', {
           const newMsg = await response.json()
           const room = this.chatRooms.find((r) => r.id === roomId)
           if (room) {
-            room.messages.push(newMsg)
+            const exists = room.messages.some((m: any) => m.id === newMsg.id)
+            if (!exists) {
+              room.messages.push(newMsg)
+            }
           }
         }
       } catch (err) {
@@ -240,11 +249,40 @@ export const useMainStore = defineStore('main', {
           const newMsg = await response.json()
           const room = this.chatRooms.find((r) => r.id === roomId)
           if (room) {
-            room.messages.push(newMsg)
+            const exists = room.messages.some((m: any) => m.id === newMsg.id)
+            if (!exists) {
+              room.messages.push(newMsg)
+            }
           }
         }
       } catch (err) {
         console.error("Add code snippet error", err)
+      }
+    },
+    connectWebSocket(roomId: number) {
+      if (this.chatSocket) {
+        this.chatSocket.close()
+      }
+      
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const wsUrl = `${protocol}//${window.location.host}/ws/chat/${roomId}/`
+      this.chatSocket = new WebSocket(wsUrl)
+      
+      this.chatSocket.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+        if (data.action === 'new_message') {
+          const room = this.chatRooms.find((r) => r.id === roomId)
+          if (room) {
+            const exists = room.messages.some((m: any) => m.id === data.payload.id)
+            if (!exists) {
+              room.messages.push(data.payload)
+            }
+          }
+        }
+      }
+      
+      this.chatSocket.onerror = (error) => {
+        console.error("WebSocket error:", error)
       }
     },
   },

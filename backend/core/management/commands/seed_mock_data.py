@@ -1,7 +1,8 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from core.models import ChatMessage, ChatRoom, CodeFile, FileComment, Project
+from core.models import CodeFile, FileComment, Project
+from chat.models import ChatMessage, ChatRoom
 from user.models import CustomUser
 
 
