@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { setActivePinia, createPinia } from 'pinia'
 import { useMainStore } from '@/stores/main'
 
@@ -18,7 +19,7 @@ describe('Auth Store (main.ts) Authentication Actions', () => {
     const mockUser = { email: 'test@example.com', name: 'Test User' }
     
     // 模擬成功的登入與依序取得環境資料的回應
-    ;(global.fetch as any).mockImplementation((url: string, init: any) => {
+    ;(global.fetch as any).mockImplementation((url: string, _init: any) => {
       if (url.includes('/login/')) {
         return Promise.resolve({ ok: true, json: async () => ({ message: 'Login successful!', user: mockUser }) })
       }

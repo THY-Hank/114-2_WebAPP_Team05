@@ -68,10 +68,15 @@
     }
     ```
 
+## WebSockets API (即時通訊)
+本專案採用 Django Channels 架構實作即時通訊，請確保啟動時環境支援 ASGI 伺服器 (如 daphne)。
+* **URL:** `/ws/chat/<room_id>/`
+* **功能:** 處理聊天室的即時連線。當有新訊息產生時，會主動廣播給所有連線於該群組的客戶端，不需前端持續輪詢 (Polling)。
+
 ## 開發環境設置
 1. 開啟虛擬環境: 使用位於根目錄的 `venv` (`../venv/Scripts/activate`)。
-2. 啟動伺服器: 在這層目錄下執行 `python manage.py runserver 8001` (搭配前端最新的 proxy 設定，伺服器請架設在 8001 port)。
-3. 如果 `db.sqlite3` 變更或不存在，需執行 `python manage.py migrate`。
+2. 啟動伺服器: 在這層目錄下執行 `daphne backend.asgi:application --port 8001` 或 `python manage.py runserver 8001` (若有套用 daphne 至 INSTALLED_APPS)。
+3. 如果 `db.sqlite3` 變更或不存在，需執行 `python manage.py makemigrations` 與 `python manage.py migrate` 遷移架構。
 
 
 

@@ -22,7 +22,8 @@ def me_view(request):
         projects.append({
             'id': p.id,
             'name': p.name,
-            'owner_id': p.owner_id
+            'owner_id': p.owner_id,
+            'members': [{'id': m.id, 'name': m.name, 'email': m.email} for m in p.members.all()]
         })
     return JsonResponse({
         'id': user.id,

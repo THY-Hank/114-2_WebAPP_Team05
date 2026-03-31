@@ -4,7 +4,7 @@ This folder contains the frontend code for the ChatDev project, a GitHub-like we
 
 ## Project Goal
 
-The objective is to build a collaborative coding platform where users can manage projects, upload and review code, and communicate with team members in real-time chat rooms. This frontend is developed as a Single Page Application (SPA) and currently uses a mock data store to simulate a backend.
+The objective is to build a collaborative coding platform where users can manage projects, upload and review code, and communicate with team members in real-time chat rooms. This frontend is developed as a Single Page Application (SPA) using Vue 3 and connects to a full Django backend via REST APIs and WebSockets.
 
 ## Getting Started
 
@@ -39,7 +39,7 @@ The source code is organized into several key directories within `src/`:
     -   `MainLayout.vue`: The main layout for the application after logging in, featuring a persistent sidebar for navigation.
 -   `router/`: Contains the Vue Router configuration (`index.ts`). It defines all application routes, including the nested structure for the main layout.
 -   `stores/`: Contains the Pinia state management store.
-    -   `main.ts`: This is the **mock backend** for the application. It holds all the mock data for users, files, and chat rooms, along with the actions to manipulate this data (e.g., `login`, `addFile`, `addChatMessage`).
+    -   `main.ts`: This is the core store of the application. It holds the active local state, authenticates users, and communicates with the real Django backend via REST Api (`src/api/`) and WebSockets.
 -   `views/`: Contains the main page components for each route.
     -   `LoginView.vue` & `RegisterView.vue`: Authentication pages.
     -   `CodeView.vue`: The main page for browsing files, viewing code, and leaving comments.
@@ -47,7 +47,7 @@ The source code is organized into several key directories within `src/`:
 
 ## Key Features & Implementation
 
--   **State Management**: The entire application state, including users, files, and chats, is managed by a Pinia store located at `src/stores/main.ts`. This file acts as a **single source of truth** and simulates all backend operations.
+-   **State & API Management**: The entire application state is managed by a Pinia store located at `src/stores/main.ts`. This acts as the single source of truth and coordinates with the database backend through native `fetch` wrappers in `src/api` and direct WebSocket connections for real-time messaging.
 -   **Routing**: Navigation is handled by Vue Router. A key feature is the nested routing configured in `src/router/index.ts`, which uses `MainLayout.vue` to provide a consistent navigation experience for the `Code` and `Chat` views.
 -   **Authentication**: The login and registration flow is handled by the `LoginView` and `RegisterView` components. They interact with the Pinia store to find or create a user.
 -   **Code & Chat Integration**:

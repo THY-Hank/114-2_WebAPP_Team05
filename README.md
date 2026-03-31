@@ -15,8 +15,9 @@
 3. **身分權限與檔案刪除 (RBAC & Deletion Guards)**：
    - **專案擁有者 (Owner)**：具備專案級別最高權限，可於設定頁面將整個專案及關聯資料強制刪除 (Cascade Delete)。
    - **一般成員 (Member)**：僅能針對特定 Code File 進行刪除，無法動搖專案根本。
-4. **全域即時聊天室 (Global Chatroom)**：
-   - 獨立於單一專案之外的全域聊天大廳，支援所有註冊成員進行廣播交流。
+4. **即時專案聊天室 (Real-Time Project Chatrooms)**：
+   - 透過 Django Channels 與 WebSockets 打造即時通訊體驗，支援建立專案群組聊天或自訂成員的私密聊天室。
+   - 整合「Share to Chat」功能，方便從程式碼檢視區塊中直接分享代碼片段至聊天室討論。
 5. **RWD 響應式佈局 (Responsive Design)**：
    - 拋棄傳統的 PX 定位，全面採用 Flexbox / Viewport (%/vw/vh) 自適應延展。
    - 螢幕大於 900px 時自動展開左右分屏；在手機端則平滑摺疊為上下堆疊，確保不會破版。

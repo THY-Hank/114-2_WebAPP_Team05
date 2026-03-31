@@ -2,7 +2,8 @@ import json
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from .models import Project, CodeFile, FileComment, ChatRoom
+from .models import Project, CodeFile, FileComment
+from chat.models import ChatRoom
 from user.models import CustomUser
 from .user_views import login_check
 

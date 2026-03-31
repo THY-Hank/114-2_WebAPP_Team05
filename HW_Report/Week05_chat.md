@@ -15,6 +15,7 @@ with gemini-3.1-pro
 13. 改一下frontend排版設計，目前不會隨螢幕更改大小不太好看
 14. 邀情成員受邀人要有個接受邀請的頁面可以決定要不要加入專案
 15. 我完成CI流程，前後端都要
+16. 先閱讀Objective.md、readme.md，後看一下frontend src中的chatroom功能，似乎不完善，聊天室必須是即時的能做到?先計劃不要執行
 # 顧庭維
 with chatpgt 5.4 plus
 1. 我想利用Django寫這專案的後端，我想知道步驟

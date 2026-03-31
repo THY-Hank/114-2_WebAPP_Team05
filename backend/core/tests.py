@@ -2,7 +2,8 @@ from django.test import TestCase, Client
 from django.urls import reverse
 import json
 from user.models import CustomUser
-from .models import Project, CodeFile, FileComment, ChatRoom, ChatMessage
+from .models import Project, CodeFile, FileComment
+from chat.models import ChatRoom, ChatMessage
 
 class CoreAPITests(TestCase):
     def setUp(self):

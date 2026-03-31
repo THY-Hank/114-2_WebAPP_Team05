@@ -2,8 +2,11 @@ import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from .models import ChatRoom, ChatMessage, Project
-from .user_views import login_check
+from .models import ChatRoom, ChatMessage
+from core.models import Project
+from core.user_views import login_check
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 def _serialize_message(message):
@@ -41,7 +44,7 @@ def project_chatrooms_view(request, project_id):
         return JsonResponse({'error': 'Project not found or access denied'}, status=404)
 
     if request.method == "GET":
-        rooms = ChatRoom.objects.filter(project=project).prefetch_related('messages__author').order_by('created_at', 'id')
+        rooms = ChatRoom.objects.filter(project=project, members=request.user).prefetch_related('messages__author').order_by('created_at', 'id')
         rooms_data = [_serialize_room(room) for room in rooms]
         return JsonResponse(rooms_data, safe=False, status=200)
 
@@ -52,7 +55,16 @@ def project_chatrooms_view(request, project_id):
             return JsonResponse({'error': 'Room name is required'}, status=400)
             
         new_room = ChatRoom.objects.create(name=name, project=project)
-        new_room.members.set(project.members.all())
+        
+        member_ids = data.get('memberIds')
+        if member_ids and isinstance(member_ids, list):
+            # Ensure creator is always in the room
+            if request.user.id not in member_ids:
+                member_ids.append(request.user.id)
+            new_room.members.set(member_ids)
+        else:
+            new_room.members.set(project.members.all())
+            
         return JsonResponse(_serialize_room(new_room), status=201)
 
 @csrf_exempt
@@ -60,7 +72,7 @@ def project_chatrooms_view(request, project_id):
 @login_check
 def add_chat_message_view(request, project_id, room_id):
     try:
-        room = ChatRoom.objects.get(id=room_id, project_id=project_id, project__members=request.user)
+        room = ChatRoom.objects.get(id=room_id, project_id=project_id, members=request.user)
     except ChatRoom.DoesNotExist:
         return JsonResponse({'error': 'Room not found or access denied'}, status=404)
 
@@ -80,4 +92,16 @@ def add_chat_message_view(request, project_id, room_id):
         code_snippet_line=snippet_line
     )
 
-    return JsonResponse(_serialize_message(msg), status=201)
+    payload = _serialize_message(msg)
+
+    # Broadcast to websocket group
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f'chat_{room_id}',
+        {
+            'type': 'chat_message',
+            'payload': payload
+        }
+    )
+
+    return JsonResponse(payload, status=201)
