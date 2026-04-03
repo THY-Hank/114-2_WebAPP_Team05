@@ -20,6 +20,9 @@ class ChatMessage(models.Model):
     text = models.TextField(blank=True, null=True)
     code_snippet_file = models.CharField(max_length=255, blank=True, null=True)
     code_snippet_line = models.IntegerField(blank=True, null=True)
+    code_snippet_start_line = models.IntegerField(blank=True, null=True)  # For line range sharing
+    code_snippet_end_line = models.IntegerField(blank=True, null=True)    # For multi-line sharing
+    code_snippet_content = models.TextField(blank=True, null=True)  # Preview of shared code
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

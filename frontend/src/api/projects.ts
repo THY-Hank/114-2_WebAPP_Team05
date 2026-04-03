@@ -3,7 +3,7 @@ export const projectsApi = {
     return fetch(`/api/projects/${projectId}/files/`)
   },
 
-  addFile: async (projectId: number, file: { name: string, content: string }) => {
+  addFile: async (projectId: number, file: { name: string, filepath?: string, content: string }) => {
     return fetch(`/api/projects/${projectId}/files/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -17,6 +17,18 @@ export const projectsApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text })
     })
+  },
+
+  addLineComment: async (fileId: number, data: { text: string; startLine: number; endLine: number }) => {
+    return fetch(`/api/files/${fileId}/line-comments/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+  },
+
+  fetchLineComments: async (fileId: number) => {
+    return fetch(`/api/files/${fileId}/line-comments/`)
   },
 
   createProject: async (name: string) => {
@@ -56,6 +68,26 @@ export const projectsApi = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action })
+    })
+  },
+
+  fetchProjectSettings: async (projectId: number) => {
+    return fetch(`/api/projects/${projectId}/settings/`)
+  },
+
+  updateProjectName: async (projectId: number, name: string) => {
+    return fetch(`/api/projects/${projectId}/settings/`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    })
+  },
+
+  removeProjectMember: async (projectId: number, memberId: number) => {
+    return fetch(`/api/projects/${projectId}/settings/`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: memberId })
     })
   },
 }

@@ -102,7 +102,7 @@ export const useMainStore = defineStore('main', {
         return false
       }
     },
-    async addFile(projectId: number, file: { name: string, content: string }) {
+    async addFile(projectId: number, file: { name: string, filepath?: string, content: string }) {
       try {
         const response = await projectsApi.addFile(projectId, file)
         if (response.ok) {
@@ -257,6 +257,40 @@ export const useMainStore = defineStore('main', {
         }
       } catch (err) {
         console.error("Add code snippet error", err)
+      }
+    },
+    async addLineComment(fileId: number, data: { text: string; startLine: number; endLine: number }) {
+      try {
+        const response = await projectsApi.addLineComment(fileId, data)
+        if (response.ok) {
+          const newComment = await response.json()
+          const file = this.files.find((f) => f.id === fileId)
+          if (file) {
+            if (!file.comments) {
+              file.comments = []
+            }
+            file.comments.push(newComment)
+          }
+        }
+      } catch (err) {
+        console.error("Add line comment error", err)
+      }
+    },
+    async addLineCodeSnippetMessage(projectId: number, roomId: number, codeSnippet: { fileName: string, startLine: number, endLine: number, content: string }) {
+      try {
+        const response = await chatApi.addLineCodeSnippetMessage(projectId, roomId, codeSnippet)
+        if (response.ok) {
+          const newMsg = await response.json()
+          const room = this.chatRooms.find((r) => r.id === roomId)
+          if (room) {
+            const exists = room.messages.some((m: any) => m.id === newMsg.id)
+            if (!exists) {
+              room.messages.push(newMsg)
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Add line code snippet error", err)
       }
     },
     connectWebSocket(roomId: number) {

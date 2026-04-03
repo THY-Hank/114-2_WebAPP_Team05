@@ -12,6 +12,8 @@ vi.mock('@/api/projects', () => ({
     deleteProject: vi.fn(),
     fetchInvitations: vi.fn(),
     respondInvitation: vi.fn(),
+    addLineComment: vi.fn(),
+    fetchLineComments: vi.fn(),
   }
 }))
 

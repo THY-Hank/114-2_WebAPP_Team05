@@ -13,7 +13,7 @@ class CoreAPITests(TestCase):
         self.client.force_login(self.user)
 
         # 建立專案與加入成員
-        self.project = Project.objects.create(name='Test Project')
+        self.project = Project.objects.create(name='Test Project', owner=self.user)
         self.project.members.add(self.user)
 
         # 建立測試用程式碼檔案
@@ -190,3 +190,347 @@ class CoreAPITests(TestCase):
         delete_response = self.client.delete(reverse('api_file_detail', args=[file_id]))
         self.assertEqual(delete_response.status_code, 204)
         self.assertEqual(CodeFile.objects.filter(id=file_id).count(), 0)
+
+    # =============== Line-Level Comments Tests ===============
+    def test_add_line_comment(self):
+        """Test creating a line-level comment"""
+        response = self.client.post(
+            reverse('api_line_comments', args=[self.code_file.id]),
+            data=json.dumps({
+                'text': 'This line needs refactoring',
+                'startLine': 1,
+                'endLine': 1
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 201)
+        
+        comment = FileComment.objects.get(text='This line needs refactoring')
+        self.assertEqual(comment.comment_type, 'line')
+        self.assertEqual(comment.start_line, 1)
+        self.assertEqual(comment.end_line, 1)
+        
+        data = response.json()
+        self.assertEqual(data['startLine'], 1)
+        self.assertEqual(data['endLine'], 1)
+
+    def test_add_multiline_comment(self):
+        """Test creating a comment spanning multiple lines"""
+        response = self.client.post(
+            reverse('api_line_comments', args=[self.code_file.id]),
+            data=json.dumps({
+                'text': 'This block can be optimized',
+                'startLine': 5,
+                'endLine': 12
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 201)
+        
+        comment = FileComment.objects.get(text='This block can be optimized')
+        self.assertEqual(comment.start_line, 5)
+        self.assertEqual(comment.end_line, 12)
+
+    def test_get_line_comments(self):
+        """Test retrieving all line-level comments for a file"""
+        # Add multiple comments
+        FileComment.objects.create(
+            file=self.code_file,
+            author=self.user,
+            text='Comment on line 1',
+            comment_type='line',
+            start_line=1,
+            end_line=1
+        )
+        FileComment.objects.create(
+            file=self.code_file,
+            author=self.user,
+            text='Comment on lines 3-5',
+            comment_type='line',
+            start_line=3,
+            end_line=5
+        )
+        # Add a file-level comment (should not be in response)
+        FileComment.objects.create(
+            file=self.code_file,
+            author=self.user,
+            text='File-level comment',
+            comment_type='file'
+        )
+        
+        response = self.client.get(reverse('api_line_comments', args=[self.code_file.id]))
+        self.assertEqual(response.status_code, 200)
+        
+        data = response.json()
+        self.assertEqual(len(data), 2)  # Only line comments, not file comments
+        
+        line_ranges = [(c['startLine'], c['endLine']) for c in data]
+        self.assertIn((1, 1), line_ranges)
+        self.assertIn((3, 5), line_ranges)
+
+    def test_add_line_comment_missing_fields(self):
+        """Test validation when fields are missing"""
+        response = self.client.post(
+            reverse('api_line_comments', args=[self.code_file.id]),
+            data=json.dumps({
+                'text': 'No line info'
+                # Missing startLine and endLine
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_add_line_comment_unauthorized(self):
+        """Test that only project members can add line comments"""
+        other_user = CustomUser.objects.create_user(
+            email='other@example.com',
+            password='password123',
+            name='Other User'
+        )
+        self.client.force_login(other_user)
+        
+        response = self.client.post(
+            reverse('api_line_comments', args=[self.code_file.id]),
+            data=json.dumps({
+                'text': 'Unauthorized comment',
+                'startLine': 1,
+                'endLine': 1
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    # =============== Line-Level Code Share Tests ===============
+    def test_add_line_code_snippet_message(self):
+        """Test sharing multiple lines of code to chat"""
+        response = self.client.post(
+            reverse('api_add_chat_message', args=[self.project.id, self.chat_room.id]),
+            data=json.dumps({
+                'codeSnippetFile': 'test.js',
+                'codeSnippetStartLine': 3,
+                'codeSnippetEndLine': 7,
+                'codeSnippetContent': 'function test() {\n  return true;\n}\n...'
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 201)
+        
+        msg = ChatMessage.objects.first()
+        self.assertEqual(msg.code_snippet_file, 'test.js')
+        self.assertEqual(msg.code_snippet_start_line, 3)
+        self.assertEqual(msg.code_snippet_end_line, 7)
+        self.assertTrue('function test' in msg.code_snippet_content)
+        
+        data = response.json()
+        self.assertEqual(data['codeSnippet']['startLine'], 3)
+        self.assertEqual(data['codeSnippet']['endLine'], 7)
+
+    def test_add_single_line_code_snippet(self):
+        """Test sharing a single line of code"""
+        response = self.client.post(
+            reverse('api_add_chat_message', args=[self.project.id, self.chat_room.id]),
+            data=json.dumps({
+                'codeSnippetFile': 'test.js',
+                'codeSnippetStartLine': 5,
+                'codeSnippetEndLine': 5,
+                'codeSnippetContent': 'console.log("hello");'
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 201)
+        
+        msg = ChatMessage.objects.first()
+        self.assertEqual(msg.code_snippet_start_line, 5)
+        self.assertEqual(msg.code_snippet_end_line, 5)
+
+    def test_previous_code_snippet_format_still_works(self):
+        """Test backward compatibility with single-line code snippet format"""
+        response = self.client.post(
+            reverse('api_add_chat_message', args=[self.project.id, self.chat_room.id]),
+            data=json.dumps({
+                'codeSnippetFile': 'test.js',
+                'codeSnippetLine': 1  # Old format with single line
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 201)
+        
+        msg = ChatMessage.objects.first()
+        self.assertEqual(msg.code_snippet_file, 'test.js')
+        self.assertEqual(msg.code_snippet_line, 1)  # Old field still works
+
+    def test_line_code_snippet_with_text_message(self):
+        """Test sharing code snippet with accompanying text message"""
+        response = self.client.post(
+            reverse('api_add_chat_message', args=[self.project.id, self.chat_room.id]),
+            data=json.dumps({
+                'text': 'Check out this implementation:',
+                'codeSnippetFile': 'test.js',
+                'codeSnippetStartLine': 2,
+                'codeSnippetEndLine': 4,
+                'codeSnippetContent': 'const x = 42;\nreturn x;'
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 201)
+        
+        msg = ChatMessage.objects.first()
+        self.assertEqual(msg.text, 'Check out this implementation:')
+        self.assertEqual(msg.code_snippet_start_line, 2)
+        self.assertEqual(msg.code_snippet_end_line, 4)
+
+    def test_file_comment_type_distinction(self):
+        """Test that file and line comments are properly distinguished"""
+        # Create a file-level comment
+        FileComment.objects.create(
+            file=self.code_file,
+            author=self.user,
+            text='Overall file comment',
+            comment_type='file'
+        )
+        # Create line comments
+        FileComment.objects.create(
+            file=self.code_file,
+            author=self.user,
+            text='Line 1 comment',
+            comment_type='line',
+            start_line=1,
+            end_line=1
+        )
+        
+        # Get only line comments endpoint
+        response = self.client.get(reverse('api_line_comments', args=[self.code_file.id]))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        
+        # Should only return line comments
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['text'], 'Line 1 comment')
+
+    # ==================== ProjectSettings Tests ====================
+    
+    def test_get_project_settings_owner(self):
+        """Test owner can fetch project settings with members list"""
+        response = self.client.get(reverse('api_project_settings', args=[self.project.id]))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        
+        # Should return project info and members
+        self.assertEqual(data['id'], self.project.id)
+        self.assertEqual(data['name'], 'Test Project')
+        self.assertEqual(data['owner_id'], self.user.id)
+        self.assertTrue('members' in data)
+        self.assertEqual(len(data['members']), 1)  # Only owner
+        self.assertEqual(data['members'][0]['id'], self.user.id)
+        self.assertTrue(data['members'][0]['isOwner'])
+
+    def test_get_project_settings_member(self):
+        """Test member can fetch project settings"""
+        # Add another member to project
+        member = CustomUser.objects.create_user(email='member@example.com', password='pw', name='Member')
+        self.project.members.add(member)
+        
+        self.client.force_login(member)
+        response = self.client.get(reverse('api_project_settings', args=[self.project.id]))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        
+        # Member can view but should see isOwner=False
+        self.assertEqual(len(data['members']), 2)
+        member_data = next((m for m in data['members'] if m['id'] == member.id), None)
+        self.assertFalse(member_data['isOwner'])
+
+    def test_update_project_name_as_owner(self):
+        """Test owner can update project name"""
+        response = self.client.put(
+            reverse('api_project_settings', args=[self.project.id]),
+            data=json.dumps({'name': 'Updated Project Name'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify project name was updated
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.name, 'Updated Project Name')
+
+    def test_update_project_name_as_member(self):
+        """Test member cannot update project name"""
+        member = CustomUser.objects.create_user(email='member2@example.com', password='pw', name='Member2')
+        self.project.members.add(member)
+        self.client.force_login(member)
+        
+        response = self.client.put(
+            reverse('api_project_settings', args=[self.project.id]),
+            data=json.dumps({'name': 'Hacked Name'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 403)
+        
+        # Verify project name unchanged
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.name, 'Test Project')
+
+    def test_remove_member_as_owner(self):
+        """Test owner can remove members from project"""
+        member = CustomUser.objects.create_user(email='member3@example.com', password='pw', name='Member3')
+        self.project.members.add(member)
+        
+        # Add member to a chat room
+        self.chat_room.members.add(member)
+        
+        self.assertEqual(self.project.members.count(), 2)
+        self.assertEqual(self.chat_room.members.count(), 2)
+        
+        # Remove member
+        response = self.client.delete(
+            reverse('api_project_settings', args=[self.project.id]),
+            data=json.dumps({'member_id': member.id}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify member removed from project
+        self.assertEqual(self.project.members.count(), 1)
+        self.assertFalse(self.project.members.filter(id=member.id).exists())
+        
+        # Verify member removed from associated chat rooms
+        self.assertEqual(self.chat_room.members.count(), 1)
+        self.assertFalse(self.chat_room.members.filter(id=member.id).exists())
+
+    def test_remove_member_cannot_remove_self(self):
+        """Test owner cannot remove themselves from project"""
+        response = self.client.delete(
+            reverse('api_project_settings', args=[self.project.id]),
+            data=json.dumps({'member_id': self.user.id}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.project.members.count(), 1)
+
+    def test_remove_member_as_non_owner(self):
+        """Test non-owner cannot remove members"""
+        member1 = CustomUser.objects.create_user(email='member4@example.com', password='pw', name='Member4')
+        member2 = CustomUser.objects.create_user(email='member5@example.com', password='pw', name='Member5')
+        self.project.members.add(member1)
+        self.project.members.add(member2)
+        
+        self.client.force_login(member1)
+        
+        response = self.client.delete(
+            reverse('api_project_settings', args=[self.project.id]),
+            data=json.dumps({'member_id': member2.id}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.project.members.count(), 3)
+
+    def test_remove_non_member_returns_error(self):
+        """Test removing a user who is not a member returns error"""
+        non_member = CustomUser.objects.create_user(email='nonmember@example.com', password='pw', name='NonMember')
+        
+        response = self.client.delete(
+            reverse('api_project_settings', args=[self.project.id]),
+            data=json.dumps({'member_id': non_member.id}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
