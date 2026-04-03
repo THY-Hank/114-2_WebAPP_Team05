@@ -10,15 +10,11 @@
         </ul>
       </div>
       <div class="new-chat-form">
-        <input v-model="newRoomName" placeholder="New room name" />
-        <div v-if="projectMembers.length > 0" class="member-selection">
-          <p>Private Room Members (optional):</p>
-          <label v-for="member in projectMembers" :key="member.id">
-            <input type="checkbox" :value="member.id" v-model="selectedMemberIds" />
-            {{ member.name || member.email }}
-          </label>
-        </div>
-        <button @click="createChatRoom">Create Room</button>
+        <input v-model="newRoomName" placeholder="New room name" class="room-name-input" />
+        <button @click="showMemberModal = true" class="select-members-btn">
+          {{ selectedMemberIds.length > 0 ? `${selectedMemberIds.length} members selected` : 'Select Members (optional)' }}
+        </button>
+        <button @click="createChatRoom" class="create-btn">Create Room</button>
       </div>
     </div>
     <div class="chat-container" v-if="selectedRoom">
@@ -29,13 +25,23 @@
             <strong class="author">{{ message.author }}</strong>
           </p>
           <p v-if="message.text">{{ message.text }}</p>
-          <p
+          <div
             v-if="message.codeSnippet"
             class="code-snippet"
             @click="viewCodeSnippet(message.codeSnippet)"
           >
-            {{ message.codeSnippet.fileName }}:{{ message.codeSnippet.line || 'file' }}
-          </p>
+            <div class="code-snippet-header">
+              <strong>{{ message.codeSnippet.fileName }}</strong>
+              <span class="line-range">
+                {{
+                  message.codeSnippet.startLine
+                    ? `Lines ${message.codeSnippet.startLine}-${message.codeSnippet.endLine}`
+                    : `Line ${message.codeSnippet.line || 1}`
+                }}
+              </span>
+            </div>
+            <pre v-if="message.codeSnippet.content" class="code-snippet-content"><code>{{ message.codeSnippet.content }}</code></pre>
+          </div>
         </div>
       </div>
       <div class="chat-input">
@@ -47,6 +53,31 @@
     <div class="chat-container" v-else>
       <p>Select a chat room to start chatting.</p>
     </div>
+    
+    <!-- Member Selection Modal -->
+    <div v-if="showMemberModal" class="modal-overlay" @click.self="showMemberModal = false">
+      <div class="modal">
+        <h3>Select Members for Room</h3>
+        <p v-if="projectMembers.length === 0" class="no-members">No members available</p>
+        <div v-else class="member-list-modal">
+          <div 
+            v-for="member in projectMembers" 
+            :key="member.id"
+            class="member-option"
+            :class="{ 'member-option--selected': selectedMemberIds.includes(member.id) }"
+            @click="toggleMember(member.id)"
+          >
+            <span class="member-option-name">{{ member.name || member.email }}</span>
+            <span v-if="selectedMemberIds.includes(member.id)" class="member-option-checkmark">✓</span>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button @click="showMemberModal = false" class="primary-btn">Done</button>
+          <button v-if="selectedMemberIds.length > 0" @click="selectedMemberIds = []" class="cancel-btn">Clear All</button>
+        </div>
+      </div>
+    </div>
+    
     <ShareModal :show="showShareModal" @close="showShareModal = false" @share="handleShare" />
   </div>
 </template>
@@ -66,6 +97,7 @@ const selectedRoom = ref<any>(null)
 const newRoomName = ref('')
 const newMessage = ref('')
 const showShareModal = ref(false)
+const showMemberModal = ref(false)
 const projectId = computed(() => Number(route.params.projectId))
 
 watch(() => projectId.value, async (newProjectId) => {
@@ -101,6 +133,15 @@ const createChatRoom = async () => {
   }
 }
 
+const toggleMember = (memberId: number) => {
+  const index = selectedMemberIds.value.indexOf(memberId)
+  if (index > -1) {
+    selectedMemberIds.value.splice(index, 1)
+  } else {
+    selectedMemberIds.value.push(memberId)
+  }
+}
+
 const sendMessage = async () => {
   if (newMessage.value.trim() !== '' && selectedRoom.value) {
     await store.addChatMessage(projectId.value, selectedRoom.value.id, newMessage.value)
@@ -112,7 +153,10 @@ const viewCodeSnippet = (codeSnippet: any) => {
   router.push({
     name: 'code',
     params: { projectId: projectId.value },
-    query: { file: codeSnippet.fileName, line: codeSnippet.line },
+    query: { 
+      file: codeSnippet.fileName, 
+      line: codeSnippet.startLine || codeSnippet.line || 1 
+    },
   })
 }
 
@@ -142,16 +186,182 @@ onUnmounted(() => {
 <style scoped>
 @import '@/assets/chat.css';
 
-.member-selection {
-  margin: 10px 0;
-  max-height: 150px;
-  overflow-y: auto;
-  font-size: 0.9em;
+.room-name-input {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+  margin-bottom: 0.5rem;
 }
 
-.member-selection label {
-  display: block;
-  margin-bottom: 5px;
+.room-name-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 4px rgba(76, 175, 80, 0.2);
+}
+
+.select-members-btn {
+  width: 100%;
+  padding: 0.6rem;
+  margin-bottom: 0.5rem;
+  background: white;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 6px;
   cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.select-members-btn:hover {
+  background: #f5f5f5;
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.create-btn {
+  width: 100%;
+  padding: 0.7rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.create-btn:hover {
+  background: #45a049;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  border-radius: 8px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.modal h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+  color: #333;
+}
+
+.no-members {
+  text-align: center;
+  color: #999;
+  padding: 1rem;
+}
+
+.member-list-modal {
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.member-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.member-option:hover {
+  background: #f0f0f0;
+  border-color: #d0d0d0;
+}
+
+.member-option--selected {
+  background: #e8f5e9;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-color);
+}
+
+.member-option-name {
+  font-weight: 500;
+  color: #333;
+}
+
+.member-option--selected .member-option-name {
+  color: #1b5e20;
+  font-weight: 600;
+}
+
+.member-option-checkmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.primary-btn {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.primary-btn:hover {
+  background: #45a049;
+}
+
+.cancel-btn {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  background: #fff;
+  color: #666;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-btn:hover {
+  background: #f5f5f5;
+  border-color: #999;
 }
 </style>

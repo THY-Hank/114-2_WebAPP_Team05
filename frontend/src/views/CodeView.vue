@@ -1,82 +1,64 @@
 <template>
   <div class="code-view-container">
     <div class="code-sidebar">
-      <div class="upload-container">
-        <h3>Upload Files</h3>
-        <form @submit.prevent="uploadFile">
-          <input type="file" multiple @change="onFileChange" ref="fileInput" />
-          <button type="submit">Upload All</button>
-        </form>
-      </div>
-      <div class="file-explorer">
-        <h3>Files</h3>
-        <ul v-if="store.currentUser && store.currentUser.projects.length > 0">
-          <li
-            v-for="file in standaloneFiles"
-            :key="file.id"
-            @click="selectFile(file)"
-            :class="{ 'active-file': selectedFile && selectedFile.id === file.id }"
-          >
-            {{ file.name }}
-          </li>
-          <li>
-            <button class="folder-toggle" type="button" @click="isFolderOpen = !isFolderOpen">
-              <span>{{ isFolderOpen ? 'v' : '>' }}</span>
-              <span>src</span>
-            </button>
-            <ul v-if="isFolderOpen" class="folder-children">
-              <li
-                v-for="file in folderFiles"
-                :key="file.id"
-                @click="selectFile(file)"
-                :class="{ 'active-file': selectedFile && selectedFile.id === file.id }"
-              >
-                {{ file.name }}
-              </li>
-            </ul>
-          </li>
-        </ul>
-      </div>
-      <div class="invite-container">
-        <h3>Invite Member</h3>
-        <div class="invite-form">
-          <input v-model="newMemberEmail" placeholder="User Email" @keyup.enter="handleInvite" />
-          <button @click="handleInvite">Add</button>
-        </div>
-      </div>
+      <!-- File Upload Section Component -->
+      <FileUploadSection />
+      
+      <!-- File Explorer Component -->
+      <FileExplorer @select-file="selectFile" />
     </div>
+    
     <div class="code-content">
-      <div v-if="selectedFile" class="code-view">
-        <div class="code-header" style="display: flex; justify-content: space-between; align-items: center;">
-          <h3>{{ selectedFile.name }}</h3>
-          <div>
-            <button class="share-btn" @click="showShareModal = true">Share to Chat</button>
-            <button class="delete-file-btn" @click="handleDeleteFile">Delete File</button>
+      <!-- Code Viewer Component -->
+      <CodeViewer 
+        :selectedFile="selectedFile"
+        @share-full-file="showFullShareModal = true"
+        @delete-file="handleDeleteFile"
+        @comment-lines="handleLineComment"
+        @share-lines="handleLineShare"
+      />
+      
+      <!-- Comment Section Component -->
+      <CommentSection 
+        v-if="selectedFile"
+        :selectedFile="selectedFile"
+        @add-comment="addComment"
+      />
+
+      <!-- Line Comment Input Modal -->
+      <div v-if="showLineCommentForm" class="modal-overlay" @click.self="showLineCommentForm = false">
+        <div class="modal">
+          <h3>Add Comment to Lines {{ lineCommentData.start }}-{{ lineCommentData.end }}</h3>
+          <textarea v-model="newLineComment" placeholder="Add your comment..."></textarea>
+          <div class="modal-actions">
+            <button @click="addLineComment" class="primary-btn">Add Comment</button>
+            <button @click="showLineCommentForm = false">Cancel</button>
           </div>
         </div>
-        <pre><code>{{ selectedFile.content }}</code></pre>
-        <div class="comments-section">
-          <h4>Comments</h4>
-          <div v-for="comment in selectedFile.comments" :key="comment.id" class="comment">
-            <p>
-              <strong>{{ comment.author }}</strong>
-            </p>
-            <p>{{ comment.text }}</p>
-          </div>
-          <div class="comment-form">
-            <textarea v-model="newComment" placeholder="Add a comment..."></textarea>
-            <button @click="addComment">Add Comment</button>
-          </div>
-        </div>
-      </div>
-      <div v-else>
-        <p>Select a file to view its content and comments.</p>
       </div>
 
-      <!-- Share Modal -->
-      <div v-if="showShareModal" class="share-modal-overlay">
-        <div class="share-modal">
-          <h3>Share to Chat</h3>
+      <!-- Line Share Modal -->
+      <div v-if="showLineShareModal" class="modal-overlay" @click.self="showLineShareModal = false">
+        <div class="modal">
+          <h3>Share Lines {{ lineShareData.start }}-{{ lineShareData.end }} to Chat</h3>
+          <p>Select a chat room:</p>
+          <select v-model="selectedLineShareRoomId" class="room-select">
+            <option disabled :value="null">Choose a room</option>
+            <option v-for="room in store.chatRooms" :key="room.id" :value="room.id">
+              {{ room.name }}
+            </option>
+          </select>
+          <div class="modal-actions">
+            <button @click="shareLineToChat" :disabled="!selectedLineShareRoomId" class="primary-btn">Share</button>
+            <button @click="showLineShareModal = false">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Full File Share Modal -->
+      <div v-if="showFullShareModal" class="modal-overlay" @click.self="showFullShareModal = false">
+        <div class="modal">
+          <h3>Share Full File to Chat</h3>
           <p>Select a chat room:</p>
           <select v-model="selectedRoomId" class="room-select">
             <option disabled :value="null">Choose a room</option>
@@ -86,7 +68,7 @@
           </select>
           <div class="modal-actions">
             <button @click="handleShareToChat" :disabled="!selectedRoomId" class="primary-btn">Share</button>
-            <button @click="showShareModal = false">Cancel</button>
+            <button @click="showFullShareModal = false">Cancel</button>
           </div>
         </div>
       </div>
@@ -98,23 +80,30 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useMainStore } from '@/stores/main'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
+import FileUploadSection from '@/components/FileUploadSection.vue'
+import FileExplorer from '@/components/FileExplorer.vue'
+import CodeViewer from '@/components/CodeViewer.vue'
+import CommentSection from '@/components/CommentSection.vue'
 
 const store = useMainStore()
-const router = useRouter()
 const route = useRoute()
-const selectedFile = ref<any>(null)
-const newComment = ref('')
-const isFolderOpen = ref(true)
 
-let selectedFilesList: File[] = []
-const fileInput = ref<any>(null)
+const selectedFile = ref<any>(null)
+const newLineComment = ref('')
 
 const projectId = computed(() => Number(route.params.projectId))
-const newMemberEmail = ref('')
 
-const showShareModal = ref(false)
+// Modal states
+const showFullShareModal = ref(false)
+const showLineCommentForm = ref(false)
+const showLineShareModal = ref(false)
 const selectedRoomId = ref<number | null>(null)
+const selectedLineShareRoomId = ref<number | null>(null)
+
+// Line comment data
+const lineCommentData = ref({ start: 0, end: 0 })
+const lineShareData = ref({ start: 0, end: 0 })
 
 watch(() => projectId.value, (newId) => {
   if (newId) {
@@ -122,20 +111,6 @@ watch(() => projectId.value, (newId) => {
     store.loadProjectChatRooms(newId)
   }
 }, { immediate: true })
-
-const standaloneFiles = computed(() => {
-  if (!store.currentUser) {
-    return []
-  }
-  return store.getProjectFiles(projectId.value).filter((file: any) => file.name === 'test.c')
-})
-
-const folderFiles = computed(() => {
-  if (!store.currentUser) {
-    return []
-  }
-  return store.getProjectFiles(projectId.value).filter((file: any) => file.name !== 'test.c')
-})
 
 onMounted(() => {
   const fileName = route.query.file
@@ -147,57 +122,18 @@ onMounted(() => {
   }
 })
 
-const onFileChange = (e: any) => {
-  selectedFilesList = Array.from(e.target?.files || [])
-}
-
-const uploadFile = () => {
-  if (selectedFilesList.length > 0 && store.currentUser) {
-    selectedFilesList.forEach((file) => {
-      const reader = new FileReader()
-      reader.onload = (e: any) => {
-        store.addFile(projectId.value, {
-          name: file.name,
-          content: e.target?.result as string,
-        })
-      }
-      reader.readAsText(file)
-    })
-    
-    // Clear selections
-    selectedFilesList = []
-    if (fileInput.value) {
-      fileInput.value.value = ''
-    }
-  } else {
-    alert('Please select at least one file to upload.')
-  }
-}
-
-const handleInvite = async () => {
-  if (newMemberEmail.value.trim() !== '') {
-    const success = await store.addProjectMember(projectId.value, newMemberEmail.value)
-    if (success) {
-      alert('Member invited successfully!')
-      newMemberEmail.value = ''
-    } else {
-      alert('Failed to invite member. Make sure the email is correct and exists.')
-    }
-  }
-}
-
 const selectFile = (file: any) => {
   selectedFile.value = file
 }
 
-const addComment = () => {
-  if (newComment.value.trim() !== '' && selectedFile.value) {
-    store.addComment(selectedFile.value.id, newComment.value)
-    newComment.value = ''
+const addComment = (text: string) => {
+  if (text.trim() !== '' && selectedFile.value) {
+    store.addComment(selectedFile.value.id, text)
   }
 }
 
 const handleDeleteFile = async () => {
+  if (!selectedFile.value) return
   if (confirm(`Are you sure you want to delete ${selectedFile.value.name}?`)) {
     const success = await store.deleteFile(selectedFile.value.id)
     if (success) {
@@ -208,6 +144,53 @@ const handleDeleteFile = async () => {
   }
 }
 
+const handleLineComment = (payload: { start: number; end: number }) => {
+  lineCommentData.value = payload
+  showLineCommentForm.value = true
+}
+
+const handleLineShare = (payload: { start: number; end: number }) => {
+  lineShareData.value = payload
+  showLineShareModal.value = true
+}
+
+const addLineComment = async () => {
+  if (!newLineComment.value.trim() || !selectedFile.value) {
+    return
+  }
+  
+  await store.addLineComment(selectedFile.value.id, {
+    text: newLineComment.value,
+    startLine: lineCommentData.value.start,
+    endLine: lineCommentData.value.end
+  })
+  
+  newLineComment.value = ''
+  showLineCommentForm.value = false
+}
+
+const shareLineToChat = async () => {
+  if (!selectedLineShareRoomId.value || !selectedFile.value) {
+    return
+  }
+  
+  const codeLines = selectedFile.value.content?.split('\n') || []
+  const snippetContent = codeLines
+    .slice(lineShareData.value.start - 1, lineShareData.value.end)
+    .join('\n')
+  
+  await store.addLineCodeSnippetMessage(projectId.value, selectedLineShareRoomId.value, {
+    fileName: selectedFile.value.name,
+    startLine: lineShareData.value.start,
+    endLine: lineShareData.value.end,
+    content: snippetContent
+  })
+  
+  alert('Code snippet shared successfully!')
+  showLineShareModal.value = false
+  selectedLineShareRoomId.value = null
+}
+
 const handleShareToChat = async () => {
   if (selectedRoomId.value && selectedFile.value) {
     await store.addCodeSnippetMessage(projectId.value, selectedRoomId.value, {
@@ -215,15 +198,13 @@ const handleShareToChat = async () => {
       line: 1
     })
     alert('Code shared successfully!')
-    showShareModal.value = false
+    showFullShareModal.value = false
     selectedRoomId.value = null
   }
 }
 </script>
 
 <style scoped>
-@import '@/assets/code.css';
-
 .code-view-container {
   display: flex;
   flex-direction: row;
@@ -231,51 +212,120 @@ const handleShareToChat = async () => {
   height: 100%;
   align-items: flex-start;
 }
+
 .code-sidebar {
-  width: 250px;
+  width: 350px;
   flex-shrink: 0;
   background: #fdfdfd;
-  padding: 1rem;
-  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  max-height: 100vh;
+  overflow-y: auto;
 }
 
-.invite-container h3 {
-  margin-bottom: 0.5rem;
+.code-content {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 100vh;
 }
 
-.invite-form {
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
-  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+}
+
+.modal h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.modal textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  box-sizing: border-box;
+}
+
+.modal textarea:focus {
+  outline: none;
+  border-color: #4caf50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
+}
+
+.room-select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin: 1rem 0;
+  box-sizing: border-box;
+  font-size: 0.9rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
   gap: 0.5rem;
+  margin-top: 1rem;
 }
 
-.delete-file-btn {
-  background: var(--dark-red, #dc3545);
-  color: white;
-  padding: 0.3rem 0.8rem;
-  border: none;
-  border-radius: var(--border-radius);
-  cursor: pointer;
-}
-.delete-file-btn:hover { opacity: 0.9; }
-
-.invite-form input {
-  padding: 0.4rem;
-  border: 1px solid var(--medium-gray);
-  border-radius: 4px;
-}
-
-.invite-form button {
-  padding: 0.4rem;
-  background: var(--primary-color);
+.primary-btn {
+  padding: 0.6rem 1.5rem;
+  background: #4caf50;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  font-weight: 500;
+}
+
+.primary-btn:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.primary-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.modal-actions button:not(.primary-btn) {
+  padding: 0.6rem 1rem;
+  border: 1px solid #ddd;
+  background: #f0f0f0;
+  color: #333;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.modal-actions button:not(.primary-btn):hover {
+  background: #e0e0e0;
+  border-color: #999;
 }
 
 @media (max-width: 900px) {
@@ -286,20 +336,4 @@ const handleShareToChat = async () => {
     width: 100%;
   }
 }
-
-.share-modal-overlay {
-  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-  background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;
-}
-.share-modal {
-  background: white; padding: 20px; border-radius: 8px; width: 300px;
-}
-.room-select {
-  width: 100%; padding: 8px; margin: 10px 0; border: 1px solid var(--medium-gray); border-radius: 4px;
-}
-.modal-actions { margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end; }
-.modal-actions button { padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; }
-.primary-btn { background: var(--primary-color); color: white; }
-.primary-btn:disabled { background: var(--medium-gray); cursor: not-allowed; }
-.share-btn { margin-right: 10px; padding: 0.3rem 0.8rem; background: var(--primary-color); color: white; border: none; border-radius: var(--border-radius); cursor: pointer; }
 </style>

@@ -20,7 +20,10 @@ def _serialize_message(message):
     if message.code_snippet_file:
         payload['codeSnippet'] = {
             'fileName': message.code_snippet_file,
-            'line': message.code_snippet_line
+            'line': message.code_snippet_line,
+            'startLine': message.code_snippet_start_line,
+            'endLine': message.code_snippet_end_line,
+            'content': message.code_snippet_content
         }
     return payload
 
@@ -80,6 +83,9 @@ def add_chat_message_view(request, project_id, room_id):
     text = data.get('text')
     snippet_file = data.get('codeSnippetFile')
     snippet_line = data.get('codeSnippetLine')
+    snippet_start_line = data.get('codeSnippetStartLine')
+    snippet_end_line = data.get('codeSnippetEndLine')
+    snippet_content = data.get('codeSnippetContent')
 
     if not text and not snippet_file:
         return JsonResponse({'error': 'Message content or code snippet required'}, status=400)
@@ -89,7 +95,10 @@ def add_chat_message_view(request, project_id, room_id):
         author=request.user, 
         text=text, 
         code_snippet_file=snippet_file, 
-        code_snippet_line=snippet_line
+        code_snippet_line=snippet_line,
+        code_snippet_start_line=snippet_start_line,
+        code_snippet_end_line=snippet_end_line,
+        code_snippet_content=snippet_content
     )
 
     payload = _serialize_message(msg)

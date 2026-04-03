@@ -153,6 +153,7 @@ def project_files_view(request, project_id):
                 'id': file.id,
                 'projectId': project.id,
                 'name': file.name,
+                'filepath': file.filepath,
                 'content': file.content,
                 'comments': comments
             })
@@ -161,12 +162,13 @@ def project_files_view(request, project_id):
     elif request.method == "POST":
         data = json.loads(request.body)
         name = data.get('name')
+        filepath = data.get('filepath', '')  # Get filepath from request, default to empty
         content = data.get('content', '')
         if not name:
             return JsonResponse({'error': 'File name is required'}, status=400)
             
-        new_file = CodeFile.objects.create(project=project, name=name, content=content)
-        return JsonResponse({'id': new_file.id, 'name': new_file.name, 'content': new_file.content, 'comments': []}, status=201)
+        new_file = CodeFile.objects.create(project=project, name=name, filepath=filepath, content=content)
+        return JsonResponse({'id': new_file.id, 'name': new_file.name, 'filepath': new_file.filepath, 'content': new_file.content, 'comments': []}, status=201)
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -188,3 +190,127 @@ def add_file_comment_view(request, file_id):
         'author': request.user.name or request.user.email,
         'text': comment.text
     }, status=201)
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+@login_check
+def line_comments_view(request, file_id):
+    """Get or create line-level comments on a specific file"""
+    try:
+        code_file = CodeFile.objects.get(id=file_id, project__members=request.user)
+    except CodeFile.DoesNotExist:
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    if request.method == "GET":
+        # Return all line-level comments for this file
+        comments_data = []
+        for comment in code_file.comments.filter(comment_type='line'):
+            comments_data.append({
+                'id': comment.id,
+                'author': comment.author.name or comment.author.email,
+                'text': comment.text,
+                'startLine': comment.start_line,
+                'endLine': comment.end_line,
+                'createdAt': comment.created_at.isoformat()
+            })
+        return JsonResponse(comments_data, safe=False, status=200)
+
+    elif request.method == "POST":
+        data = json.loads(request.body)
+        text = data.get('text')
+        start_line = data.get('startLine')
+        end_line = data.get('endLine')
+        
+        if not text or start_line is None:
+            return JsonResponse({'error': 'Text and startLine are required'}, status=400)
+        
+        if end_line is None:
+            end_line = start_line
+        
+        comment = FileComment.objects.create(
+            file=code_file,
+            author=request.user,
+            text=text,
+            comment_type='line',
+            start_line=start_line,
+            end_line=end_line
+        )
+        return JsonResponse({
+            'id': comment.id,
+            'author': request.user.name or request.user.email,
+            'text': comment.text,
+            'startLine': comment.start_line,
+            'endLine': comment.end_line,
+            'createdAt': comment.created_at.isoformat()
+        }, status=201)
+
+@csrf_exempt
+@require_http_methods(["GET", "PUT", "DELETE"])
+@login_check
+def project_settings_view(request, project_id):
+    """Manage project settings: get/update name, get members, remove members"""
+    try:
+        project = Project.objects.get(id=project_id, members=request.user)
+    except Project.DoesNotExist:
+        return JsonResponse({'error': 'Project not found or access denied'}, status=404)
+
+    if request.method == "GET":
+        # Return project info and members list
+        members_data = []
+        for member in project.members.all():
+            members_data.append({
+                'id': member.id,
+                'name': member.name or member.email,
+                'email': member.email,
+                'isOwner': project.owner_id == member.id,
+                'joinedAt': member.date_joined.isoformat() if hasattr(member, 'date_joined') else None
+            })
+        return JsonResponse({
+            'id': project.id,
+            'name': project.name,
+            'owner_id': project.owner_id,
+            'members': members_data,
+            'isOwner': request.user.id == project.owner_id
+        }, status=200)
+
+    elif request.method == "PUT":
+        # Update project name (owner only)
+        if request.user.id != project.owner_id:
+            return JsonResponse({'error': 'Only the owner can update project settings'}, status=403)
+        
+        data = json.loads(request.body)
+        new_name = data.get('name')
+        if not new_name:
+            return JsonResponse({'error': 'Project name is required'}, status=400)
+        
+        project.name = new_name
+        project.save()
+        return JsonResponse({'message': 'Project updated successfully', 'name': project.name}, status=200)
+
+    elif request.method == "DELETE":
+        # Remove a member from the project
+        if request.user.id != project.owner_id:
+            return JsonResponse({'error': 'Only the owner can remove members'}, status=403)
+        
+        data = json.loads(request.body)
+        member_id = data.get('member_id')
+        if not member_id:
+            return JsonResponse({'error': 'member_id is required'}, status=400)
+        
+        try:
+            member_to_remove = CustomUser.objects.get(id=member_id)
+        except CustomUser.DoesNotExist:
+            return JsonResponse({'error': 'Member not found'}, status=404)
+        
+        if member_to_remove.id == project.owner_id:
+            return JsonResponse({'error': 'Cannot remove the project owner'}, status=400)
+        
+        if not project.members.filter(id=member_id).exists():
+            return JsonResponse({'error': 'User is not a member of this project'}, status=400)
+        
+        project.members.remove(member_to_remove)
+        # Also remove from all chat rooms in this project
+        for room in project.chatrooms.all():
+            room.members.remove(member_to_remove)
+        
+        return JsonResponse({'message': f'Member removed successfully'}, status=200)

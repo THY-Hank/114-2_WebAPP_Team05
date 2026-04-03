@@ -10,6 +10,7 @@ vi.mock('@/api/chat', () => ({
     addChatRoom: vi.fn(),
     addChatMessage: vi.fn(),
     addCodeSnippetMessage: vi.fn(),
+    addLineCodeSnippetMessage: vi.fn(),
   }
 }))
 

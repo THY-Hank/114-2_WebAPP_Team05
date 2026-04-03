@@ -1,86 +1,134 @@
-# Team05HW - 多專案協作平台 (Chatdev)
+# Team05HW — 多專案協作平台 (ChatDev)
 
-這是一個具備高度隔離性、支援多人即時協作與權限管理的 **GitHub-Style 多專案管理與聊天應用程式**。
-專案採用前後端分離架構，前端使用 Vue 3 (Composition API Payload) + Vite 進行響應式介面渲染，後端則使用 Django 搭建強健的 RESTful API 服務。
+這是一個具備高度隔離性、支援多人即時協作與權限管理的 **GitHub-Style 多專案管理與聊天應用程式**。  
+前端使用 **Vue 3 (Composition API) + Vite**，後端使用 **Django 6 + Django Channels**，透過 WebSocket 實現即時通訊。
 
 ---
 
 ## 🌟 核心功能 (Key Features)
-1. **GitHub 風格的專案隔離 (Project Workspaces)**：
-   - 告別單一全域工作區，用戶可以建立無數個獨立的 Project。
-   - 透過專屬 Dashboard 儀表板總覽個人所有專案。
-2. **安全的邀請信箱系統 (Invitation Handshake)**：
-   - 透過發送電子郵件進行成員邀請（不會強制拉人入群）。
-   - 被邀請者擁有獨立的「收件匣 (Inbox)」，可自行決定 `Accept` (接受) 或 `Decline` (拒絕)。
-3. **身分權限與檔案刪除 (RBAC & Deletion Guards)**：
-   - **專案擁有者 (Owner)**：具備專案級別最高權限，可於設定頁面將整個專案及關聯資料強制刪除 (Cascade Delete)。
-   - **一般成員 (Member)**：僅能針對特定 Code File 進行刪除，無法動搖專案根本。
-4. **即時專案聊天室 (Real-Time Project Chatrooms)**：
-   - 透過 Django Channels 與 WebSockets 打造即時通訊體驗，支援建立專案群組聊天或自訂成員的私密聊天室。
-   - 整合「Share to Chat」功能，方便從程式碼檢視區塊中直接分享代碼片段至聊天室討論。
-5. **RWD 響應式佈局 (Responsive Design)**：
-   - 拋棄傳統的 PX 定位，全面採用 Flexbox / Viewport (%/vw/vh) 自適應延展。
-   - 螢幕大於 900px 時自動展開左右分屏；在手機端則平滑摺疊為上下堆疊，確保不會破版。
+
+| 功能 | 說明 |
+|---|---|
+| **GitHub 風格專案工作區** | 無限建立獨立 Project，透過 Dashboard 總覽所有專案 |
+| **邀請制成員管理** | Email 邀請；受邀者在收件匣自行 Accept / Decline |
+| **身分與刪除權限 (RBAC)** | Owner 可刪除整個專案（Cascade）；Member 只能刪除自己的檔案 |
+| **專案設定頁** | Owner 可修改專案名稱、移除成員（同步踢出所有聊天室） |
+| **即時聊天室** | Django Channels + WebSocket；可自訂成員或開放全專案 |
+| **Share to Chat** | 從程式碼檢視區選取行數後直接分享至聊天室，可點擊跳回指定行 |
+| **行級留言** | 在程式碼旁對指定行範圍留言，支援多行選取 |
+| **個人頁面** | 登入後查看 Email、名稱、所屬專案列表 |
+| **RWD 響應式佈局** | 全 Flexbox / Viewport 自適應；> 900px 左右分屏，手機端折疊 |
 
 ---
 
 ## 🔒 安全性設計 (Security Architecture)
-團隊在開發末期針對此系統進行了深度 **Security Hardening (安全性強化)**：
-- **敏感金鑰解耦 (.env)**： 
-  系統的 `SECRET_KEY`、`DEBUG` 模式旗標，以及用來雙向加密密碼的 `AES_KEY` 和 `AES_IV`，均已從原始碼中拔除，改為依賴伺服器環境的 `.env` 變數掛載，完美避免被 Push 到 GitHub 上遭到爬蟲濫用。
-- **密碼高規隱私 (AES CBC Padding)**： 
-  使用者密碼不以明文儲存，所有密碼寫入 SQLite 前皆會經過 AES Block Size Padding 強制加密，確保即便資料庫外洩，駭客也無法輕易取得明文資訊。
-*(註：目前內部 API 為了降低 Vue Proxy Fetch 的耦合難度，開發環境暫時保留了 `@csrf_exempt` 豁免設定。若未來部署至正式生產環境 (Production)，建議將 Session Auth 替換為 JWT 以達完全無狀態化防護。)*
+
+- **敏感金鑰解耦 (`.env`)** — `SECRET_KEY`、`AES_KEY`、`AES_IV`、`DEBUG` 均由環境變數掛載，不進版控。  
+- **AES-CBC 密碼加密** — 前端以 AES CBC Padding 加密後再傳送；後端解密後再以 PBKDF2 儲存。  
+- **Session-based Auth** — Django Session 保持登入狀態；CSRF 豁免僅限開發環境 API（`@csrf_exempt`）。
 
 ---
 
 ## 🚀 CI/CD 自動化管線 (GitHub Actions)
-專案內建了 `.github/workflows/CI.yaml` 持續整合腳本。
-只要有任何人向 `main` 或 `master` 發起 `Push` 或 `Pull Request`，GitHub 雲端機器人就會自動：
-1. **Backend 測試任務**：載入 Python 3.12 核心，匯入 `requirements.txt` 環境，然後無頭自動通過 `python manage.py test core` 掃描檢測核心模型和資料庫權限邏輯。
-2. **Frontend 測試任務**：掛載 Node.js 20 環境，透過 Vitest (Pinia Mocks) 對所有前端 UI 元件和狀態樹發出壓力測試確保綠燈。
+
+`.github/workflows/CI.yaml` 在每次 `push` / `pull_request` 到 `main` / `master` 時觸發三個並行任務：
+
+| Job | 內容 |
+|---|---|
+| **Backend Tests & Lint** | Python 3.12、flake8 語法檢查、`python manage.py test user chat core` |
+| **Frontend Code Quality** | Node 20、TypeScript 型別檢查、ESLint、`npm run build` |
+| **Frontend Unit Tests** | Vitest + Pinia mock；測試所有前端 store action 與 UI 元件 |
 
 ---
 
-## 💻 安裝與啟動指南 (Quick Start)
+## 💻 快速啟動 (Quick Start)
 
-### 1. 後端啟動 (Django API)
+### 前置條件
+
+> 專案的 Python 虛擬環境位於 **根目錄 `venv/`**，請統一使用此環境。
+
 ```bash
-# 1. 進入後端資料夾
+# 建立虛擬環境（僅首次）
+python -m venv venv
+
+# 安裝所有後端依賴
+venv/Scripts/activate          # Windows
+# source venv/bin/activate     # macOS / Linux
+pip install -r requirements.txt
+```
+
+### 1. 後端啟動 (Django / Daphne ASGI)
+
+```bash
 cd backend
 
-# 2. 建立虛擬環境 (建議) 並安裝依賴套件
-python -m venv venv
-source venv/Scripts/activate  # (Windows: venv\Scripts\activate)
-pip install -r requirements.txt
-
-# 3. 建立並補齊環境變數設定檔 (安全必須)
-# 請在 backend/ 根目錄下建立 `.env` 檔案，內容格式如下：
+# 建立 .env（僅首次）
+# 內容格式：
 # SECRET_KEY=your_secure_django_key_here
 # DEBUG=True
 # AES_KEY=team05_secret_key_12345678901234
 # AES_IV=team05_shared_iv
 
-# 4. 遷移資料庫與啟動
+# 遷移資料庫
+../venv/Scripts/activate
 python manage.py migrate
+
+# 啟動伺服器（port 8001）
 python manage.py runserver 8001
 ```
 
-### 2. 前端啟動 (Vue 3 Vite)
+### 2. 前端啟動 (Vue 3 + Vite)
+
 ```bash
-# 1. 進入前端資料夾
 cd frontend
 
-# 2. 安裝 Node Modules 依賴套件
-npm install
-
-# 3. 建立並補齊環境變數設定檔 (安全必須)
-# 請在 frontend/ 根目錄下建立 `.env` 檔案，內容格式如下：
+# 建立 .env（僅首次）
+# 內容格式：
 # VITE_AES_KEY=team05_secret_key_12345678901234
 # VITE_AES_IV=team05_shared_iv
 
-# 4. 啟動熱更動開發伺服器
+npm install
 npm run dev
-# 伺服器通常會運行於 http://localhost:5173
+# 預設運行於 http://localhost:5173
 ```
-> **注意**：前端的 API 會自動透過 Vite 的 Proxy 代理攔截 `/api/` 並轉發至 `http://127.0.0.1:8001`，因此前後端請確保皆在運行狀態才能正常登入與抓取資料。
+
+> **注意**：前端透過 Vite Proxy 將 `/api/` 及 `/ws/` 轉發至 `http://127.0.0.1:8001`，請確保後端同時運行。
+
+### 3. 執行測試
+
+```bash
+# 後端全部測試（user + chat + core，共 ~70 個）
+cd backend
+../venv/Scripts/activate
+python manage.py test user chat core --verbosity=2
+
+# 前端測試
+cd frontend
+npm run test:unit
+```
+
+---
+
+## 📁 專案結構 (Project Structure)
+
+```
+Team05HW/
+├── venv/                   # Python 虛擬環境（共用）
+├── requirements.txt        # Python 依賴套件
+├── backend/                # Django 後端
+│   ├── backend/            # 專案設定 (settings.py, urls.py, asgi.py)
+│   ├── user/               # 使用者認證 App (register / login / logout)
+│   ├── core/               # 核心業務 App (projects, files, comments, invitations)
+│   ├── chat/               # 聊天室 App (REST + WebSocket consumer)
+│   └── manage.py
+├── frontend/               # Vue 3 前端
+│   ├── src/
+│   │   ├── api/            # fetch 封裝 (auth.ts, projects.ts, chat.ts)
+│   │   ├── components/     # 可複用元件
+│   │   ├── layouts/        # 主框架 MainLayout.vue
+│   │   ├── router/         # Vue Router 路由設定
+│   │   ├── stores/         # Pinia 狀態管理 (main.ts)
+│   │   └── views/          # 各頁面元件
+│   └── src/__tests__/      # Vitest 前端單元測試
+└── .github/workflows/      # GitHub Actions CI
+```

@@ -24,7 +24,7 @@
 
 <script setup lang="ts">
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ref, computed, defineProps, defineEmits } from 'vue'
+import { ref, computed } from 'vue'
 import { useMainStore } from '@/stores/main'
 
 const props = defineProps<{
