@@ -78,7 +78,7 @@
 
 <script setup lang="ts">
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useMainStore } from '@/stores/main'
 import { useRoute } from 'vue-router'
 import FileUploadSection from '@/components/FileUploadSection.vue'
@@ -105,21 +105,26 @@ const selectedLineShareRoomId = ref<number | null>(null)
 const lineCommentData = ref({ start: 0, end: 0 })
 const lineShareData = ref({ start: 0, end: 0 })
 
-watch(() => projectId.value, (newId) => {
-  if (newId) {
-    store.loadProjectFiles(newId)
-    store.loadProjectChatRooms(newId)
-  }
-}, { immediate: true })
-
-onMounted(() => {
+const syncRouteSelection = () => {
   const fileName = route.query.file
   if (fileName) {
-    const file = store.files.find((f) => f.name === fileName)
+    const file = store.files.find((f) => (f.filepath || f.name) === fileName)
     if (file) {
       selectFile(file)
     }
   }
+}
+
+watch(() => projectId.value, async (newId) => {
+  if (newId) {
+    await store.loadProjectFiles(newId)
+    await store.loadProjectChatRooms(newId)
+    syncRouteSelection()
+  }
+}, { immediate: true })
+
+watch(() => route.query.file, () => {
+  syncRouteSelection()
 })
 
 const selectFile = (file: any) => {
@@ -180,7 +185,7 @@ const shareLineToChat = async () => {
     .join('\n')
   
   await store.addLineCodeSnippetMessage(projectId.value, selectedLineShareRoomId.value, {
-    fileName: selectedFile.value.name,
+    fileName: selectedFile.value.filepath || selectedFile.value.name,
     startLine: lineShareData.value.start,
     endLine: lineShareData.value.end,
     content: snippetContent
@@ -194,7 +199,7 @@ const shareLineToChat = async () => {
 const handleShareToChat = async () => {
   if (selectedRoomId.value && selectedFile.value) {
     await store.addCodeSnippetMessage(projectId.value, selectedRoomId.value, {
-      fileName: selectedFile.value.name,
+      fileName: selectedFile.value.filepath || selectedFile.value.name,
       line: 1
     })
     alert('Code shared successfully!')

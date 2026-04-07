@@ -1,6 +1,11 @@
 <template>
   <div class="container">
     <div class="sidebar">
+      <div class="sidebar-brand">
+        <p class="brand">Chatdev</p>
+        <p class="brand-subtitle">Project Workspace</p>
+      </div>
+
       <div v-if="currentUser" class="user-profile">
         <button class="profile-trigger" type="button" @click="showPersonalInfo = true">
           {{ currentUser.name }}

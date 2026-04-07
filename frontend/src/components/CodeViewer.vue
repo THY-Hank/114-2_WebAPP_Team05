@@ -1,7 +1,13 @@
 <template>
   <div v-if="selectedFile" class="code-view">
     <div class="code-header" style="display: flex; justify-content: space-between; align-items: center;">
-      <h3>{{ selectedFile.name }}</h3>
+      <div>
+        <h3>{{ selectedFile.name }}</h3>
+        <p class="file-path">{{ selectedFile.filepath || selectedFile.name }}</p>
+        <p v-if="selectedFile.isBinary" class="binary-meta">
+          Binary placeholder · {{ selectedFile.contentType || 'application/octet-stream' }} · {{ formatSize(selectedFile.sizeBytes || 0) }}
+        </p>
+      </div>
       <div>
         <button class="share-btn" @click="$emit('share-full-file')">Share to Chat</button>
         <button class="delete-file-btn" @click="$emit('delete-file')">Delete File</button>
@@ -66,6 +72,12 @@ const codeLines = computed(() => {
   return props.selectedFile?.content?.split('\n') || []
 })
 
+const formatSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 const syncScroll = () => {
   if (lineNumbersEl.value && codeContentEl.value) {
     lineNumbersEl.value.scrollTop = codeContentEl.value.scrollTop
@@ -118,6 +130,13 @@ const onLineMouseUp = () => {
 .code-header h3 {
   margin: 0;
   color: #333;
+}
+
+.file-path,
+.binary-meta {
+  margin: 0.25rem 0 0;
+  color: #6d8195;
+  font-size: 0.85rem;
 }
 
 .share-btn,

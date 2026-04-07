@@ -27,13 +27,18 @@ export const useMainStore = defineStore('main', {
   },
   actions: {
     async loadDashboardData() {
-      if (!this.currentUser) return;
       try {
         let res = await authApi.fetchMe()
         if (res.ok) {
           const userData = await res.json()
-          this.currentUser.id = userData.id
-          this.currentUser.projects = userData.projects || []
+          this.currentUser = {
+            ...(this.currentUser || {}),
+            ...userData,
+            projects: userData.projects || [],
+          }
+        } else {
+          this.currentUser = null
+          return
         }
         res = await projectsApi.fetchInvitations()
         if (res.ok) {
@@ -225,6 +230,34 @@ export const useMainStore = defineStore('main', {
         console.error("Add chatroom error", err)
       }
     },
+    async renameChatRoom(projectId: number, roomId: number, name: string) {
+      try {
+        const response = await chatApi.renameChatRoom(projectId, roomId, name)
+        if (response.ok) {
+          const updatedRoom = await response.json()
+          const roomIndex = this.chatRooms.findIndex((r) => r.id === roomId)
+          if (roomIndex !== -1) {
+            this.chatRooms[roomIndex] = updatedRoom
+          }
+          return updatedRoom
+        }
+      } catch (err) {
+        console.error("Rename chatroom error", err)
+      }
+      return null
+    },
+    async deleteChatRoom(projectId: number, roomId: number) {
+      try {
+        const response = await chatApi.deleteChatRoom(projectId, roomId)
+        if (response.ok) {
+          this.chatRooms = this.chatRooms.filter((room) => room.id !== roomId)
+          return true
+        }
+      } catch (err) {
+        console.error("Delete chatroom error", err)
+      }
+      return false
+    },
     async addChatMessage(projectId: number, roomId: number, message: string) {
       try {
         const response = await chatApi.addChatMessage(projectId, roomId, message)
@@ -236,6 +269,7 @@ export const useMainStore = defineStore('main', {
             if (!exists) {
               room.messages.push(newMsg)
             }
+            room.unreadCount = 0
           }
         }
       } catch (err) {
@@ -253,6 +287,7 @@ export const useMainStore = defineStore('main', {
             if (!exists) {
               room.messages.push(newMsg)
             }
+            room.unreadCount = 0
           }
         }
       } catch (err) {
@@ -287,11 +322,49 @@ export const useMainStore = defineStore('main', {
             if (!exists) {
               room.messages.push(newMsg)
             }
+            room.unreadCount = 0
           }
         }
       } catch (err) {
         console.error("Add line code snippet error", err)
       }
+    },
+    async markChatRoomRead(projectId: number, roomId: number) {
+      try {
+        const response = await chatApi.markChatRoomRead(projectId, roomId)
+        if (response.ok) {
+          const data = await response.json()
+          const room = this.chatRooms.find((r) => r.id === roomId)
+          if (room) {
+            room.unreadCount = data.unreadCount
+            room.messages = room.messages.map((message: any) => ({
+              ...message,
+              isReadByCurrentUser: true,
+            }))
+          }
+        }
+      } catch (err) {
+        console.error("Mark chatroom read error", err)
+      }
+    },
+    async pinChatMessage(projectId: number, roomId: number, messageId: number, isPinned: boolean) {
+      try {
+        const response = await chatApi.pinChatMessage(projectId, roomId, messageId, isPinned)
+        if (response.ok) {
+          const updatedMessage = await response.json()
+          const room = this.chatRooms.find((r) => r.id === roomId)
+          if (room) {
+            const idx = room.messages.findIndex((m: any) => m.id === messageId)
+            if (idx !== -1) {
+              room.messages[idx] = updatedMessage
+            }
+          }
+          return updatedMessage
+        }
+      } catch (err) {
+        console.error("Pin chat message error", err)
+      }
+      return null
     },
     connectWebSocket(roomId: number) {
       if (this.chatSocket) {
@@ -304,13 +377,20 @@ export const useMainStore = defineStore('main', {
       
       this.chatSocket.onmessage = (event) => {
         const data = JSON.parse(event.data)
+        const room = this.chatRooms.find((r) => r.id === roomId)
+        if (!room) {
+          return
+        }
+
         if (data.action === 'new_message') {
-          const room = this.chatRooms.find((r) => r.id === roomId)
-          if (room) {
-            const exists = room.messages.some((m: any) => m.id === data.payload.id)
-            if (!exists) {
-              room.messages.push(data.payload)
-            }
+          const exists = room.messages.some((m: any) => m.id === data.payload.id)
+          if (!exists) {
+            room.messages.push(data.payload)
+          }
+        } else if (data.action === 'message_updated') {
+          const messageIndex = room.messages.findIndex((m: any) => m.id === data.payload.id)
+          if (messageIndex !== -1) {
+            room.messages[messageIndex] = data.payload
           }
         }
       }

@@ -10,7 +10,7 @@
             @click="selectedFile = file"
             :class="{ 'active-file': selectedFile && selectedFile.id === file.id }"
           >
-            {{ file.name }}
+            {{ file.filepath || file.name }}
           </li>
         </ul>
       </div>
@@ -25,6 +25,7 @@
 <script setup lang="ts">
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useMainStore } from '@/stores/main'
 
 const props = defineProps<{
@@ -34,7 +35,9 @@ const props = defineProps<{
 const emit = defineEmits(['close', 'share'])
 
 const store = useMainStore()
-const files = computed(() => store.files)
+const route = useRoute()
+const projectId = computed(() => Number(route.params.projectId))
+const files = computed(() => store.getProjectFiles(projectId.value))
 const selectedFile = ref<any>(null)
 
 const share = () => {

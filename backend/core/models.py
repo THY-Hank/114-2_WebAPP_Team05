@@ -16,6 +16,9 @@ class CodeFile(models.Model):
     name = models.CharField(max_length=255)
     filepath = models.CharField(max_length=500, default='', blank=True)  # e.g., "src/components/button.vue"
     content = models.TextField(blank=True)
+    content_type = models.CharField(max_length=255, blank=True, default='')
+    size_bytes = models.PositiveIntegerField(default=0)
+    is_binary = models.BooleanField(default=False)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

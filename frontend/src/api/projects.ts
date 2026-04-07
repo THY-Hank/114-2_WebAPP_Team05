@@ -3,7 +3,17 @@ export const projectsApi = {
     return fetch(`/api/projects/${projectId}/files/`)
   },
 
-  addFile: async (projectId: number, file: { name: string, filepath?: string, content: string }) => {
+  addFile: async (
+    projectId: number,
+    file: {
+      name: string
+      filepath?: string
+      content: string
+      contentType?: string
+      sizeBytes?: number
+      isBinary?: boolean
+    },
+  ) => {
     return fetch(`/api/projects/${projectId}/files/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
