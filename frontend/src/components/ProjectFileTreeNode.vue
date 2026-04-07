@@ -39,7 +39,11 @@ type FileTreeNode = {
   name: string
   path: string
   icon?: string
-  file?: any
+  file?: {
+    id: number
+    name: string
+    filepath?: string
+  }
   children?: FileTreeNode[]
 }
 

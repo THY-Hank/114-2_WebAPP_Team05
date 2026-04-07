@@ -100,6 +100,12 @@ type UploadEntry = {
   willRenameTo: string | null
 }
 
+type ProjectFile = {
+  id: number
+  name: string
+  filepath?: string
+}
+
 type TreeNode = {
   id: string
   name: string
@@ -129,7 +135,7 @@ const folderInput = ref<HTMLInputElement>()
 const zipInput = ref<HTMLInputElement>()
 
 const projectId = computed(() => parseInt(route.params.projectId as string, 10))
-const existingPaths = computed(() => new Set(store.getProjectFiles(projectId.value).map((file: any) => file.filepath || file.name)))
+const existingPaths = computed(() => new Set(store.getProjectFiles(projectId.value).map((file: ProjectFile) => file.filepath || file.name)))
 const totalQueuedBytes = computed(() => queuedFiles.value.reduce((sum, entry) => sum + entry.sizeBytes, 0))
 
 const normalizePath = (value: string) => value.replace(/\\/g, '/').replace(/^\/+/, '')
