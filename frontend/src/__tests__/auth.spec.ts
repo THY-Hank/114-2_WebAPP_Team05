@@ -35,7 +35,11 @@ describe('Auth Store (main.ts) Authentication Actions', () => {
     const result = await store.login('test@example.com', 'password123')
     
     expect(result).toBe(true)
-    expect(store.currentUser).toEqual(mockUser)
+    expect(store.currentUser).toEqual(expect.objectContaining({
+      ...mockUser,
+      id: 1,
+      projects: [],
+    }))
     
     // 驗證 fetch 有被正確呼叫
     expect(global.fetch).toHaveBeenCalledWith('/api/user/login/', expect.objectContaining({

@@ -1,11 +1,12 @@
 <template>
-  <div class="register-container">
-    <div class="register-box">
-      <h2 style="text-align: center; color: var(--text-color); margin-top: 0;">Chatdev</h2>
+  <div class="login-container">
+    <div class="login-box">
+      <div class="login-glow" aria-hidden="true"></div>
+      <p class="brand">Chatdev</p>
       <h1>登入</h1>
       <p class="subtitle">登入你的帳號以進入專案儀表板</p>
 
-      <form @submit.prevent="login">
+      <form class="login-form" @submit.prevent="login">
         <label for="email">電子郵件</label>
         <input 
           type="email" 
@@ -30,6 +31,7 @@
       </form>
 
       <p class="login-link">還沒有帳號嗎？<router-link to="/register">建立帳號</router-link></p>
+      <p class="login-note">Collaborate on code, comments, and chat in one workspace.</p>
     </div>
   </div>
 </template>
@@ -55,5 +57,5 @@ const login = async () => {
 </script>
 
 <style scoped>
-@import '@/assets/register.css';
+@import '@/assets/login.css';
 </style>

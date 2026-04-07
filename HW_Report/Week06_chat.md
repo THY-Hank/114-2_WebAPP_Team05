@@ -7,5 +7,7 @@ with Claude Haiku 4.5
 5. 現在project設定的功能沒有製作，幫我完成他，包含權限設定、基本加人減人改在這裡
 # 顧庭維
 with chatpgt 5.4 plus
+1. 真正的 project 上傳體驗。現在比較像「把多個文字檔案讀進資料庫」；FileUploadSection.vue (line 101) 是逐檔 readAsText() 後送 API，沒有保留資料夾結構、沒有 binary 支援、沒有大檔限制、沒有重名衝突處理。最值得升級成「上傳整個資料夾/zip、保留路徑、顯示樹狀結構」。
+2. 聊天室訊息能力。現在已經能傳文字和 code snippet，再往上很適合補：訊息搜尋、未讀數、已讀狀態、@mention、置頂訊息、聊天室刪除/重新命名。
 # 片岡佳穗
 退選

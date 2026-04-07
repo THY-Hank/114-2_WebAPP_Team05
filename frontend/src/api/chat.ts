@@ -11,6 +11,20 @@ export const chatApi = {
     })
   },
 
+  renameChatRoom: async (projectId: number, roomId: number, name: string) => {
+    return fetch(`/api/projects/${projectId}/chatrooms/${roomId}/`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+  },
+
+  deleteChatRoom: async (projectId: number, roomId: number) => {
+    return fetch(`/api/projects/${projectId}/chatrooms/${roomId}/`, {
+      method: 'DELETE',
+    })
+  },
+
   addChatMessage: async (projectId: number, roomId: number, text: string) => {
     return fetch(`/api/projects/${projectId}/chatrooms/${roomId}/messages/`, {
       method: 'POST',
@@ -41,5 +55,19 @@ export const chatApi = {
         codeSnippetContent: codeSnippet.content
       })
     })
-  }
+  },
+
+  markChatRoomRead: async (projectId: number, roomId: number) => {
+    return fetch(`/api/projects/${projectId}/chatrooms/${roomId}/read/`, {
+      method: 'POST',
+    })
+  },
+
+  pinChatMessage: async (projectId: number, roomId: number, messageId: number, isPinned: boolean) => {
+    return fetch(`/api/projects/${projectId}/chatrooms/${roomId}/messages/${messageId}/pin/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isPinned }),
+    })
+  },
 }

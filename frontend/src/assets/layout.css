@@ -1,31 +1,64 @@
 .container {
   display: flex;
   flex-direction: row;
-  height: 100vh;
-  width: 100vw;
+  min-height: 100vh;
+  width: 100%;
   max-width: 100%;
   overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(58, 123, 213, 0.2), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(91, 33, 182, 0.24), transparent 30%),
+    linear-gradient(135deg, #060816 0%, #0c1224 46%, #151b31 100%);
 }
 
 .sidebar {
-  width: 250px;
+  width: 280px;
   flex-shrink: 0;
-  background: var(--light-gray);
-  padding: 2rem;
-  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+  margin: 1.5rem 0 1.5rem 1.5rem;
+  padding: 1.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 24%),
+    rgba(11, 18, 32, 0.86);
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px);
   display: flex;
   flex-direction: column;
+  gap: 1.5rem;
   z-index: 10;
 }
 
-.user-profile {
+.sidebar-brand {
   padding-bottom: 1rem;
-  border-bottom: 1px solid var(--medium-gray);
-  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
 }
 
-.user-profile h4 {
-  margin: 0 0 0.5rem 0;
+.brand {
+  margin: 0 0 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+}
+
+.brand-subtitle {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+}
+
+.user-profile {
+  padding: 1.1rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent),
+    rgba(15, 23, 42, 0.78);
 }
 
 .profile-trigger {
@@ -33,32 +66,46 @@
   margin: 0 0 0.5rem 0;
   border: none;
   background: transparent;
-  color: var(--text-color);
-  font-size: 1rem;
+  color: #f8fafc;
+  font-size: 1.05rem;
   font-weight: 700;
   cursor: pointer;
   text-align: left;
+  transition: color 0.2s ease;
 }
 
 .profile-trigger:hover {
-  color: var(--primary-color);
+  color: #7dd3fc;
 }
 
 .user-profile p {
   margin: 0;
   font-size: 0.9rem;
-  color: #555;
+  color: #94a3b8;
+  word-break: break-word;
 }
 
 .user-profile button {
   margin-top: 1rem;
   width: 100%;
-  padding: 0.5rem;
-  background: var(--error-color);
-  color: white;
+  padding: 0.85rem 1rem;
   border: none;
-  border-radius: var(--border-radius);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
+  color: #fff1f2;
+  font-size: 0.95rem;
+  font-weight: 700;
   cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+}
+
+.user-profile button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 32px rgba(225, 29, 72, 0.28);
+  filter: brightness(1.05);
 }
 
 .navigation ul {
@@ -72,20 +119,41 @@
 
 .navigation li a {
   display: block;
-  padding: 1rem;
+  padding: 0.95rem 1rem;
   text-decoration: none;
-  color: var(--text-color);
-  border-radius: var(--border-radius);
-  transition: background 0.2s;
+  color: #cbd5e1;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.44);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .navigation li a:hover {
-  background: var(--medium-gray);
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(125, 211, 252, 0.2);
+  color: #f8fafc;
+  transform: translateX(2px);
+}
+
+.navigation li a.router-link-active {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(37, 99, 235, 0.18));
+  border-color: rgba(56, 189, 248, 0.3);
+  color: #f8fafc;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.badge {
+  color: #7dd3fc;
+  font-weight: 700;
 }
 
 .content {
   flex-grow: 1;
-  padding: 2rem;
+  padding: 1.5rem 1.5rem 1.5rem 1.25rem;
   overflow-y: auto;
 }
 
@@ -95,20 +163,23 @@
     flex-direction: column;
     overflow-y: auto;
   }
+
   .sidebar {
     width: 100%;
-    height: auto;
+    box-sizing: border-box;
+    margin: 1rem 1rem 0;
     padding: 1rem;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   }
+
   .navigation ul {
     flex-direction: row;
     flex-wrap: wrap;
   }
+
   .navigation li {
     flex: 1 1 auto;
-    text-align: center;
   }
+
   .content {
     padding: 1rem;
   }

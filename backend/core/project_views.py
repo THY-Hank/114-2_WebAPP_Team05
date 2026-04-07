@@ -1,4 +1,5 @@
 import json
+import os
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -6,6 +7,27 @@ from .models import Project, CodeFile, FileComment
 from chat.models import ChatRoom
 from user.models import CustomUser
 from .user_views import login_check
+
+
+def _split_name_parts(filepath):
+    base_path, filename = os.path.split(filepath)
+    stem, ext = os.path.splitext(filename)
+    return base_path, stem or filename, ext
+
+
+def _build_unique_filepath(project, filepath):
+    normalized = filepath or ''
+    if not normalized:
+        return normalized
+
+    candidate = normalized
+    counter = 2
+    while project.files.filter(filepath=candidate).exists():
+        base_path, stem, ext = _split_name_parts(normalized)
+        renamed = f"{stem} ({counter}){ext}"
+        candidate = os.path.join(base_path, renamed) if base_path else renamed
+        counter += 1
+    return candidate
 
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
@@ -19,7 +41,7 @@ def project_list_view(request):
         
         new_project = Project.objects.create(name=name, owner=request.user)
         new_project.members.add(request.user)
-        default_room = ChatRoom.objects.create(project=new_project, name='General')
+        default_room = ChatRoom.objects.create(project=new_project, name='General', created_by=request.user)
         default_room.members.add(request.user)
         return JsonResponse({'id': new_project.id, 'name': new_project.name, 'owner_id': new_project.owner_id}, status=201)
     else:
@@ -155,6 +177,9 @@ def project_files_view(request, project_id):
                 'name': file.name,
                 'filepath': file.filepath,
                 'content': file.content,
+                'contentType': file.content_type,
+                'sizeBytes': file.size_bytes,
+                'isBinary': file.is_binary,
                 'comments': comments
             })
         return JsonResponse(files_data, safe=False, status=200)
@@ -164,11 +189,35 @@ def project_files_view(request, project_id):
         name = data.get('name')
         filepath = data.get('filepath', '')  # Get filepath from request, default to empty
         content = data.get('content', '')
+        content_type = data.get('contentType', '')
+        size_bytes = data.get('sizeBytes') or 0
+        is_binary = bool(data.get('isBinary', False))
         if not name:
             return JsonResponse({'error': 'File name is required'}, status=400)
-            
-        new_file = CodeFile.objects.create(project=project, name=name, filepath=filepath, content=content)
-        return JsonResponse({'id': new_file.id, 'name': new_file.name, 'filepath': new_file.filepath, 'content': new_file.content, 'comments': []}, status=201)
+
+        requested_filepath = filepath or name
+        final_filepath = _build_unique_filepath(project, requested_filepath)
+        final_name = os.path.basename(final_filepath) or name
+
+        new_file = CodeFile.objects.create(
+            project=project,
+            name=final_name,
+            filepath=final_filepath,
+            content=content,
+            content_type=content_type,
+            size_bytes=size_bytes,
+            is_binary=is_binary,
+        )
+        return JsonResponse({
+            'id': new_file.id,
+            'name': new_file.name,
+            'filepath': new_file.filepath,
+            'content': new_file.content,
+            'contentType': new_file.content_type,
+            'sizeBytes': new_file.size_bytes,
+            'isBinary': new_file.is_binary,
+            'comments': [],
+        }, status=201)
 
 @csrf_exempt
 @require_http_methods(["POST"])
