@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { authApi } from '@/api/auth'
 import { projectsApi } from '@/api/projects'
 import { chatApi } from '@/api/chat'
+import { clearAuthToken, getAuthToken, setAuthToken } from '@/api/http'
 
 export const useMainStore = defineStore('main', {
   state: () => ({
@@ -32,11 +33,12 @@ export const useMainStore = defineStore('main', {
         if (res.ok) {
           const userData = await res.json()
           this.currentUser = {
-            ...(this.currentUser || {}),
+            ...this.currentUser,
             ...userData,
             projects: userData.projects || [],
           }
         } else {
+          clearAuthToken()
           this.currentUser = null
           return
         }
@@ -67,13 +69,18 @@ export const useMainStore = defineStore('main', {
         const response = await authApi.login(email, password)
         const data = await response.json()
         if (response.ok) {
+          if (data.accessToken) {
+            setAuthToken(data.accessToken)
+          }
           this.currentUser = data.user
           await this.loadDashboardData()
           return true
         }
-        console.error(data.error)
+        clearAuthToken()
+        console.error('Login failed:', data.error)
         return false
       } catch (err) {
+        clearAuthToken()
         console.error('Login error:', err)
         return false
       }
@@ -81,6 +88,7 @@ export const useMainStore = defineStore('main', {
     async logout() {
       try {
         await authApi.logout()
+        clearAuthToken()
         this.currentUser = null
         this.files = []
         this.chatRooms = []
@@ -100,7 +108,8 @@ export const useMainStore = defineStore('main', {
         if (response.ok) {
           return true
         }
-        console.error(data.error)
+        // 顯示後端返回的具體錯誤
+        console.error('Register failed:', data.error)
         return false
       } catch (err) {
         console.error('Register error:', err)
@@ -329,6 +338,80 @@ export const useMainStore = defineStore('main', {
         console.error("Add line code snippet error", err)
       }
     },
+    async updateFileContent(fileId: number, content: string, note = '') {
+      try {
+        const response = await projectsApi.updateFileContent(fileId, content, note)
+        const data = await response.json()
+        if (response.ok) {
+          const file = this.files.find((f) => f.id === fileId)
+          if (file) {
+            file.content = content
+            file.sizeBytes = data.sizeBytes
+          }
+          return { success: true, data }
+        }
+        return { success: false, error: data.error || 'Failed to save file' }
+      } catch (err) {
+        console.error('Update file content error', err)
+        return { success: false, error: 'Failed to save file' }
+      }
+    },
+    async fetchFileVersions(fileId: number) {
+      try {
+        const response = await projectsApi.fetchFileVersions(fileId)
+        if (response.ok) {
+          return { success: true, data: await response.json() }
+        }
+        const data = await response.json()
+        return { success: false, error: data.error || 'Failed to load versions', data: [] }
+      } catch (err) {
+        console.error('Fetch versions error', err)
+        return { success: false, error: 'Failed to load versions', data: [] }
+      }
+    },
+    async fetchFileVersionDiff(fileId: number, fromVersionId: number, toVersionId: number) {
+      try {
+        const response = await projectsApi.fetchFileVersionDiff(fileId, fromVersionId, toVersionId)
+        if (response.ok) {
+          return { success: true, data: await response.json() }
+        }
+        const data = await response.json()
+        return { success: false, error: data.error || 'Failed to load diff' }
+      } catch (err) {
+        console.error('Fetch diff error', err)
+        return { success: false, error: 'Failed to load diff' }
+      }
+    },
+    async revertFileVersion(fileId: number, versionId: number, note = '') {
+      try {
+        const response = await projectsApi.revertFileVersion(fileId, versionId, note)
+        const data = await response.json()
+        if (response.ok) {
+          const file = this.files.find((f) => f.id === fileId)
+          if (file) {
+            file.content = data.content
+          }
+          return { success: true, data }
+        }
+        return { success: false, error: data.error || 'Failed to revert version' }
+      } catch (err) {
+        console.error('Revert version error', err)
+        return { success: false, error: 'Failed to revert version' }
+      }
+    },
+    async markVersionSnapshot(fileId: number, versionId: number, tagName = '', isSnapshot = true) {
+      try {
+        const response = await projectsApi.markVersionSnapshot(fileId, versionId, tagName, isSnapshot)
+        const data = await response.json()
+        if (response.ok) {
+          return { success: true, data }
+        }
+        return { success: false, error: data.error || 'Failed to mark snapshot' }
+      } catch (err) {
+        console.error('Mark snapshot error', err)
+        return { success: false, error: 'Failed to mark snapshot' }
+      }
+    },
     async markChatRoomRead(projectId: number, roomId: number) {
       try {
         const response = await chatApi.markChatRoomRead(projectId, roomId)
@@ -372,7 +455,10 @@ export const useMainStore = defineStore('main', {
       }
       
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${protocol}//${window.location.host}/ws/chat/${roomId}/`
+      const token = getAuthToken()
+      const wsUrl = token
+        ? `${protocol}//${window.location.host}/ws/chat/${roomId}/?token=${encodeURIComponent(token)}`
+        : `${protocol}//${window.location.host}/ws/chat/${roomId}/`
       this.chatSocket = new WebSocket(wsUrl)
       
       this.chatSocket.onmessage = (event) => {

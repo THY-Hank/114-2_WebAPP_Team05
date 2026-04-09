@@ -1,6 +1,21 @@
 import json
+from urllib.parse import parse_qs
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+from user.jwt_utils import get_user_from_token
+
+
+@database_sync_to_async
+def _resolve_user(scope):
+    scope_user = scope.get('user')
+    if scope_user is not None and getattr(scope_user, 'is_authenticated', False):
+        return scope_user
+
+    query_string = (scope.get('query_string') or b'').decode('utf-8')
+    token = parse_qs(query_string).get('token', [None])[0]
+    if not token:
+        return None
+    return get_user_from_token(token)
 
 
 @database_sync_to_async
@@ -19,7 +34,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_id = self.scope['url_route']['kwargs']['room_id']
         self.room_group_name = f'chat_{self.room_id}'
 
-        if not await _can_access_room(self.scope.get('user'), self.room_id):
+        resolved_user = await _resolve_user(self.scope)
+        self.scope['resolved_user'] = resolved_user
+
+        if not await _can_access_room(resolved_user, self.room_id):
             await self.close(code=4403)
             return
 

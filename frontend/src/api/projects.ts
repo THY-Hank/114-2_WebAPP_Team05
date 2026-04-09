@@ -1,6 +1,8 @@
+import { authFetch } from './http'
+
 export const projectsApi = {
   fetchProjectFiles: async (projectId: number) => {
-    return fetch(`/api/projects/${projectId}/files/`)
+    return authFetch(`/api/projects/${projectId}/files/`)
   },
 
   addFile: async (
@@ -14,7 +16,7 @@ export const projectsApi = {
       isBinary?: boolean
     },
   ) => {
-    return fetch(`/api/projects/${projectId}/files/`, {
+    return authFetch(`/api/projects/${projectId}/files/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(file)
@@ -22,7 +24,7 @@ export const projectsApi = {
   },
 
   addComment: async (fileId: number, text: string) => {
-    return fetch(`/api/files/${fileId}/comments/`, {
+    return authFetch(`/api/files/${fileId}/comments/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text })
@@ -30,7 +32,7 @@ export const projectsApi = {
   },
 
   addLineComment: async (fileId: number, data: { text: string; startLine: number; endLine: number }) => {
-    return fetch(`/api/files/${fileId}/line-comments/`, {
+    return authFetch(`/api/files/${fileId}/line-comments/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -38,11 +40,43 @@ export const projectsApi = {
   },
 
   fetchLineComments: async (fileId: number) => {
-    return fetch(`/api/files/${fileId}/line-comments/`)
+    return authFetch(`/api/files/${fileId}/line-comments/`)
+  },
+
+  updateFileContent: async (fileId: number, content: string, note = '') => {
+    return authFetch(`/api/files/${fileId}/content/`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, note })
+    })
+  },
+
+  fetchFileVersions: async (fileId: number) => {
+    return authFetch(`/api/files/${fileId}/versions/`)
+  },
+
+  fetchFileVersionDiff: async (fileId: number, fromVersionId: number, toVersionId: number) => {
+    return authFetch(`/api/files/${fileId}/versions/diff/?fromVersionId=${fromVersionId}&toVersionId=${toVersionId}`)
+  },
+
+  revertFileVersion: async (fileId: number, versionId: number, note = '') => {
+    return authFetch(`/api/files/${fileId}/revert/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ versionId, note })
+    })
+  },
+
+  markVersionSnapshot: async (fileId: number, versionId: number, tagName = '', isSnapshot = true) => {
+    return authFetch(`/api/files/${fileId}/versions/${versionId}/snapshot/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tagName, isSnapshot })
+    })
   },
 
   createProject: async (name: string) => {
-    return fetch('/api/projects/', {
+    return authFetch('/api/projects/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })
@@ -50,7 +84,7 @@ export const projectsApi = {
   },
 
   addProjectMember: async (projectId: number, email: string) => {
-    return fetch(`/api/projects/${projectId}/members/`, {
+    return authFetch(`/api/projects/${projectId}/members/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
@@ -58,23 +92,23 @@ export const projectsApi = {
   },
 
   deleteFile: async (fileId: number) => {
-    return fetch(`/api/files/${fileId}/`, {
+    return authFetch(`/api/files/${fileId}/`, {
       method: 'DELETE'
     })
   },
 
   deleteProject: async (projectId: number) => {
-    return fetch(`/api/projects/${projectId}/`, {
+    return authFetch(`/api/projects/${projectId}/`, {
       method: 'DELETE'
     })
   },
 
   fetchInvitations: async () => {
-    return fetch('/api/invitations/')
+    return authFetch('/api/invitations/')
   },
 
   respondInvitation: async (invitationId: number, action: 'accept' | 'decline') => {
-    return fetch(`/api/invitations/${invitationId}/respond/`, {
+    return authFetch(`/api/invitations/${invitationId}/respond/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action })
@@ -82,11 +116,11 @@ export const projectsApi = {
   },
 
   fetchProjectSettings: async (projectId: number) => {
-    return fetch(`/api/projects/${projectId}/settings/`)
+    return authFetch(`/api/projects/${projectId}/settings/`)
   },
 
   updateProjectName: async (projectId: number, name: string) => {
-    return fetch(`/api/projects/${projectId}/settings/`, {
+    return authFetch(`/api/projects/${projectId}/settings/`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })
@@ -94,7 +128,7 @@ export const projectsApi = {
   },
 
   removeProjectMember: async (projectId: number, memberId: number) => {
-    return fetch(`/api/projects/${projectId}/settings/`, {
+    return authFetch(`/api/projects/${projectId}/settings/`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ member_id: memberId })

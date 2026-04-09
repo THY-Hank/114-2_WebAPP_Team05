@@ -2,10 +2,22 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 import json
+from functools import wraps
+from user.jwt_utils import get_user_from_token
 
 def login_check(func):
     """Simple decorator or wrapper to ensure JSON responses for unauthenticated users."""
+    @wraps(func)
     def wrapper(request, *args, **kwargs):
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header.split(' ', 1)[1].strip()
+            jwt_user = get_user_from_token(token)
+            if jwt_user:
+                request.user = jwt_user
+                return func(request, *args, **kwargs)
+            return JsonResponse({'error': 'Invalid or expired token'}, status=401)
+
         if not request.user.is_authenticated:
             return JsonResponse({'error': 'Not authenticated'}, status=401)
         return func(request, *args, **kwargs)

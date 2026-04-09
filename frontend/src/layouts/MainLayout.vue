@@ -55,7 +55,11 @@ const showPersonalInfo = ref(false)
 const currentUser = computed(() => store.currentUser as CurrentUser | null)
 const projectId = computed(() => route.params.projectId)
 
-onMounted(() => {
+onMounted(async () => {
+  if (!store.isLoggedIn) {
+    await store.loadDashboardData()
+  }
+
   if (!store.isLoggedIn) {
     router.push('/login')
   }
