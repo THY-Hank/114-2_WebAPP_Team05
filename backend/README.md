@@ -19,14 +19,18 @@
 所有 API 皆接受 `Content-Type: application/json`，回傳 JSON。  
 需要登入的端點，未登入時回傳 `401 Unauthorized`。
 
+受保護端點請在 Header 夾帶 `Authorization: Bearer <JWT_ACCESS_TOKEN>`。
+
 ### 使用者認證 (`/api/user/`)
 
 | Method | URL | 說明 | 需登入 |
 |---|---|---|---|
 | POST | `/api/user/register/` | 建立新帳號 | ✗ |
-| POST | `/api/user/login/` | 登入（Session Cookie） | ✗ |
+| POST | `/api/user/login/` | 登入（回傳 JWT Access Token） | ✗ |
 | POST | `/api/user/logout/` | 登出 | ✓ |
 | GET  | `/api/user/me/` | 取得目前使用者資訊與專案列表 | ✓ |
+
+> `register` / `login` 可夾帶 `recaptchaToken`。開發環境採 demo 模式，生產環境可接 Google reCAPTCHA v3。
 
 **密碼加密**：前端先以 AES-CBC 加密密碼後再傳送；後端解密後以 PBKDF2 儲存，任何時刻都不以明文傳輸或儲存。
 
@@ -48,7 +52,11 @@
 { "email": "user@example.com", "password": "<AES encrypted>" }
 
 // 200 OK
-{ "message": "Login successful!", "user": { "email": "user@example.com", "name": "王小明" } }
+{
+   "message": "Login successful!",
+   "accessToken": "<JWT>",
+   "user": { "id": 1, "email": "user@example.com", "name": "王小明" }
+}
 ```
 
 **GET /api/user/me/**
@@ -89,8 +97,17 @@
 | Method | URL | 說明 |
 |---|---|---|
 | GET / DELETE | `/api/files/<id>/` | 取得 / 刪除檔案 |
+| PUT | `/api/files/<id>/content/` | 儲存檔案內容並建立新版本 |
+| GET | `/api/files/<id>/versions/` | 取得版本歷史 |
+| GET | `/api/files/<id>/versions/diff/?fromVersionId=<a>&toVersionId=<b>` | 比對任兩版差異 |
+| POST | `/api/files/<id>/versions/<version_id>/snapshot/` | 設定版本 Tag/Snapshot（Owner） |
+| POST | `/api/files/<id>/revert/` | 還原到指定版本（Owner） |
 | GET / POST | `/api/files/<id>/comments/` | 取得全域留言 / 新增留言 |
 | GET / POST | `/api/files/<id>/line-comments/` | 取得行級留言 / 新增行級留言 |
+
+**版本控制權限規則：**
+- 專案成員：可查看版本歷史與 Diff
+- 專案 Owner：可 Revert、可設定 Tag/Snapshot
 
 **行級留言 Request：**
 ```json
@@ -175,6 +192,13 @@ python manage.py test user chat core --verbosity=2
    DEBUG=True
    AES_KEY=team05_secret_key_12345678901234
    AES_IV=team05_shared_iv
+   DB_NAME=chatdev
+   DB_USER=postgres
+   DB_PASSWORD=your_postgres_password
+   DB_HOST=127.0.0.1
+   DB_PORT=5432
+   JWT_SECRET=your_jwt_secret
+   JWT_ACCESS_MINUTES=60
    ```
 
 3. **資料庫遷移**：

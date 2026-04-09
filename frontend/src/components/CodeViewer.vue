@@ -9,9 +9,18 @@
         </p>
       </div>
       <div>
+        <button class="edit-btn" @click="startEditing" v-if="!isEditing">Edit</button>
+        <button class="save-btn" @click="saveEdit" v-if="isEditing">Save</button>
+        <button class="cancel-btn" @click="cancelEdit" v-if="isEditing">Cancel</button>
         <button class="share-btn" @click="$emit('share-full-file')">Share to Chat</button>
         <button class="delete-file-btn" @click="$emit('delete-file')">Delete File</button>
       </div>
+    </div>
+
+    <div v-if="isEditing" class="edit-panel">
+      <label class="edit-label" for="version-note">Version note (optional)</label>
+      <input id="version-note" v-model="versionNote" class="edit-note-input" placeholder="e.g. fix login validation bug" />
+      <textarea v-model="draftContent" class="edit-textarea" />
     </div>
     
     <!-- Code Editor with Line Numbers -->
@@ -36,9 +45,9 @@
       </div>
       
       <!-- Line Selection Action Button -->
-      <div v-if="selectionStart !== null && selectionEnd !== null" class="selection-action">
-        <button @click="$emit('comment-lines', { start: selectionStart, end: selectionEnd })" class="action-btn-comment">💬 Comment Lines {{ selectionStart }}-{{ selectionEnd }}</button>
-        <button @click="$emit('share-lines', { start: selectionStart, end: selectionEnd })" class="action-btn-share">📤 Share Lines {{ selectionStart }}-{{ selectionEnd }}</button>
+      <div v-if="selectedRange" class="selection-action">
+        <button @click="$emit('comment-lines', selectedRange)" class="action-btn-comment">💬 Comment Lines {{ selectedRange.start }}-{{ selectedRange.end }}</button>
+        <button @click="$emit('share-lines', selectedRange)" class="action-btn-share">📤 Share Lines {{ selectedRange.start }}-{{ selectedRange.end }}</button>
       </div>
     </div>
   </div>
@@ -60,6 +69,7 @@ const emit = defineEmits<{
   'delete-file': []
   'comment-lines': [payload: { start: number; end: number }]
   'share-lines': [payload: { start: number; end: number }]
+  'save-file': [payload: { content: string; note: string }]
 }>()
 
 const selectionStart = ref<number | null>(null)
@@ -69,7 +79,22 @@ const lineNumbersEl = ref<HTMLDivElement>()
 const codeContentEl = ref<HTMLDivElement>()
 
 const codeLines = computed(() => {
-  return props.selectedFile?.content?.split('\n') || []
+  const content = isEditing.value ? draftContent.value : props.selectedFile?.content
+  return content?.split('\n') || []
+})
+
+const isEditing = ref(false)
+const draftContent = ref('')
+const versionNote = ref('')
+
+const selectedRange = computed<{ start: number; end: number } | null>(() => {
+  if (selectionStart.value === null || selectionEnd.value === null) {
+    return null
+  }
+  return {
+    start: Math.min(selectionStart.value, selectionEnd.value),
+    end: Math.max(selectionStart.value, selectionEnd.value),
+  }
 })
 
 const formatSize = (bytes: number) => {
@@ -108,6 +133,23 @@ const onLineMouseEnter = (lineNum: number) => {
 const onLineMouseUp = () => {
   isSelecting.value = false
 }
+
+const startEditing = () => {
+  draftContent.value = props.selectedFile?.content || ''
+  versionNote.value = ''
+  isEditing.value = true
+}
+
+const cancelEdit = () => {
+  isEditing.value = false
+  draftContent.value = ''
+  versionNote.value = ''
+}
+
+const saveEdit = () => {
+  emit('save-file', { content: draftContent.value, note: versionNote.value.trim() })
+  isEditing.value = false
+}
 </script>
 
 <style scoped>
@@ -140,7 +182,10 @@ const onLineMouseUp = () => {
 }
 
 .share-btn,
-.delete-file-btn {
+.delete-file-btn,
+.edit-btn,
+.save-btn,
+.cancel-btn {
   padding: 0.4rem 0.8rem;
   margin-left: 0.5rem;
   border: none;
@@ -155,6 +200,21 @@ const onLineMouseUp = () => {
   color: white;
 }
 
+.edit-btn {
+  background: #1976d2;
+  color: white;
+}
+
+.save-btn {
+  background: #2e7d32;
+  color: white;
+}
+
+.cancel-btn {
+  background: #607d8b;
+  color: white;
+}
+
 .share-btn:hover {
   background: #45a049;
 }
@@ -166,6 +226,39 @@ const onLineMouseUp = () => {
 
 .delete-file-btn:hover {
   background: #ff1744;
+}
+
+.edit-panel {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8fafc;
+}
+
+.edit-label {
+  display: block;
+  font-size: 0.85rem;
+  color: #334155;
+  margin-bottom: 0.35rem;
+}
+
+.edit-note-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+.edit-textarea {
+  width: 100%;
+  min-height: 180px;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: 0.9rem;
 }
 
 .code-container {

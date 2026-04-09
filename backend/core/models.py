@@ -24,6 +24,24 @@ class CodeFile(models.Model):
     def __str__(self):
         return f"{self.project.name} - {self.name}"
 
+
+class CodeFileVersion(models.Model):
+    file = models.ForeignKey(CodeFile, on_delete=models.CASCADE, related_name='versions')
+    version_number = models.PositiveIntegerField()
+    content = models.TextField(blank=True)
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    change_note = models.CharField(max_length=255, blank=True, default='')
+    tag_name = models.CharField(max_length=100, blank=True, default='')
+    is_snapshot = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-version_number']
+        unique_together = ('file', 'version_number')
+
+    def __str__(self):
+        return f"{self.file.name} v{self.version_number}"
+
 class FileComment(models.Model):
     COMMENT_TYPE_CHOICES = (
         ('file', 'Whole File'),

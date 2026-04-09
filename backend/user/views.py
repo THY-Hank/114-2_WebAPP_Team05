@@ -1,9 +1,11 @@
 import json
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from .models import CustomUser
+from .jwt_utils import generate_access_token
+from .captcha import is_valid_recaptcha
 
 import base64
 import os
@@ -40,6 +42,13 @@ def register_view(request):
         email = data.get('email')
         encrypted_password = data.get('password')
         name = data.get('name', '')
+        recaptcha_token = data.get('recaptchaToken', '')
+        
+        # 验证 reCAPTCHA（v3 分数阈值 0.5）
+        if recaptcha_token:
+            is_valid, error_msg = is_valid_recaptcha(recaptcha_token, min_score=0.5)
+            if not is_valid:
+                return JsonResponse({'error': f'CAPTCHA 验证失败: {error_msg}'}, status=400)
         
         password = decrypt_password(encrypted_password) if encrypted_password else None
         
@@ -61,6 +70,13 @@ def login_view(request):
         data = json.loads(request.body)
         email = data.get('email')
         encrypted_password = data.get('password')
+        recaptcha_token = data.get('recaptchaToken', '')
+        
+        # 验证 reCAPTCHA（v3 分数阈值 0.5）
+        if recaptcha_token:
+            is_valid, error_msg = is_valid_recaptcha(recaptcha_token, min_score=0.5)
+            if not is_valid:
+                return JsonResponse({'error': f'CAPTCHA 验证失败: {error_msg}'}, status=400)
         
         password = decrypt_password(encrypted_password) if encrypted_password else None
         if not password:
@@ -68,10 +84,10 @@ def login_view(request):
         
         user = authenticate(request, email=email, password=password)
         if user is not None:
-            login(request, user)
             return JsonResponse({
                 'message': 'Login successful!',
-                'user': {'email': user.email, 'name': user.name}
+                'accessToken': generate_access_token(user),
+                'user': {'id': user.id, 'email': user.email, 'name': user.name}
             })
         else:
             return JsonResponse({'error': 'Invalid credentials.'}, status=401)
@@ -81,5 +97,4 @@ def login_view(request):
 @csrf_exempt
 @require_http_methods(["POST", "GET"])
 def logout_view(request):
-    logout(request)
     return JsonResponse({'message': 'Logout successful!'})

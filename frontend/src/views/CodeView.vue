@@ -16,7 +16,53 @@
         @delete-file="handleDeleteFile"
         @comment-lines="handleLineComment"
         @share-lines="handleLineShare"
+        @save-file="handleSaveFile"
       />
+
+      <div v-if="selectedFile" class="version-panel">
+        <div class="version-header">
+          <h3>Version History</h3>
+          <button class="primary-btn" @click="loadVersions">Refresh</button>
+        </div>
+        <div class="version-controls">
+          <label>Compare</label>
+          <select v-model="diffFromId" class="room-select">
+            <option :value="null" disabled>From version</option>
+            <option v-for="v in versions" :key="`from-${v.id}`" :value="v.id">v{{ v.versionNumber }}</option>
+          </select>
+          <select v-model="diffToId" class="room-select">
+            <option :value="null" disabled>To version</option>
+            <option v-for="v in versions" :key="`to-${v.id}`" :value="v.id">v{{ v.versionNumber }}</option>
+          </select>
+          <button class="primary-btn" @click="loadDiff" :disabled="!diffFromId || !diffToId">Show Diff</button>
+        </div>
+        <pre v-if="versionDiff" class="diff-box">{{ versionDiff }}</pre>
+        <ul class="version-list">
+          <li v-for="v in versions" :key="v.id" class="version-item">
+            <div class="version-main">
+              <strong>v{{ v.versionNumber }}</strong>
+              <span class="meta">{{ v.changedBy }} · {{ formatTime(v.createdAt) }}</span>
+            </div>
+            <div class="version-note">{{ v.note || 'No note' }}</div>
+            <div class="version-tags" v-if="v.isSnapshot || v.tagName">
+              <span v-if="v.isSnapshot" class="tag-pill">Snapshot</span>
+              <span v-if="v.tagName" class="tag-pill">{{ v.tagName }}</span>
+            </div>
+            <div class="version-actions">
+              <button
+                class="primary-btn"
+                v-if="isCurrentProjectOwner"
+                @click="markSnapshot(v.id)"
+              >Tag/Snapshot</button>
+              <button
+                class="danger-btn"
+                v-if="isCurrentProjectOwner"
+                @click="revertToVersion(v.id, v.versionNumber)"
+              >Revert</button>
+            </div>
+          </li>
+        </ul>
+      </div>
       
       <!-- Comment Section Component -->
       <CommentSection 
@@ -104,6 +150,24 @@ const selectedLineShareRoomId = ref<number | null>(null)
 // Line comment data
 const lineCommentData = ref({ start: 0, end: 0 })
 const lineShareData = ref({ start: 0, end: 0 })
+const versions = ref<any[]>([])
+const diffFromId = ref<number | null>(null)
+const diffToId = ref<number | null>(null)
+const versionDiff = ref('')
+
+const currentProject = computed(() => {
+  const list = store.currentUser?.projects || []
+  return list.find((p: any) => p.id === projectId.value) || null
+})
+
+const isCurrentProjectOwner = computed(() => {
+  return !!currentProject.value && currentProject.value.owner_id === store.currentUser?.id
+})
+
+const normalizeRange = (start: number, end: number) => ({
+  start: Math.min(start, end),
+  end: Math.max(start, end),
+})
 
 const syncRouteSelection = () => {
   const fileName = route.query.file
@@ -129,6 +193,67 @@ watch(() => route.query.file, () => {
 
 const selectFile = (file: any) => {
   selectedFile.value = file
+  loadVersions()
+}
+
+const loadVersions = async () => {
+  if (!selectedFile.value) {
+    versions.value = []
+    return
+  }
+  const result = await store.fetchFileVersions(selectedFile.value.id)
+  versions.value = result.success ? result.data : []
+}
+
+const formatTime = (isoString: string) => {
+  const date = new Date(isoString)
+  return date.toLocaleString()
+}
+
+const handleSaveFile = async (payload: { content: string; note: string }) => {
+  if (!selectedFile.value) return
+  const result = await store.updateFileContent(selectedFile.value.id, payload.content, payload.note)
+  if (!result.success) {
+    alert(result.error || 'Save failed')
+    return
+  }
+  selectedFile.value.content = payload.content
+  await loadVersions()
+}
+
+const loadDiff = async () => {
+  if (!selectedFile.value || !diffFromId.value || !diffToId.value) return
+  const result = await store.fetchFileVersionDiff(selectedFile.value.id, diffFromId.value, diffToId.value)
+  if (result.success) {
+    versionDiff.value = result.data.diff || 'No diff'
+    return
+  }
+  alert(result.error || 'Failed to load diff')
+}
+
+const markSnapshot = async (versionId: number) => {
+  if (!selectedFile.value) return
+  const tagName = prompt('Tag name (optional):', '') || ''
+  const result = await store.markVersionSnapshot(selectedFile.value.id, versionId, tagName, true)
+  if (!result.success) {
+    alert(result.error || 'Failed to tag version')
+    return
+  }
+  await loadVersions()
+}
+
+const revertToVersion = async (versionId: number, versionNumber: number) => {
+  if (!selectedFile.value) return
+  const ok = confirm(`Revert file to version v${versionNumber}?`)
+  if (!ok) return
+  const note = prompt('Revert note (optional):', `Reverted to version ${versionNumber}`) || ''
+  const result = await store.revertFileVersion(selectedFile.value.id, versionId, note)
+  if (!result.success) {
+    alert(result.error || 'Failed to revert version')
+    return
+  }
+  selectedFile.value.content = result.data.content
+  await loadVersions()
 }
 
 const addComment = (text: string) => {
@@ -150,12 +275,12 @@ const handleDeleteFile = async () => {
 }
 
 const handleLineComment = (payload: { start: number; end: number }) => {
-  lineCommentData.value = payload
+  lineCommentData.value = normalizeRange(payload.start, payload.end)
   showLineCommentForm.value = true
 }
 
 const handleLineShare = (payload: { start: number; end: number }) => {
-  lineShareData.value = payload
+  lineShareData.value = normalizeRange(payload.start, payload.end)
   showLineShareModal.value = true
 }
 
@@ -163,11 +288,13 @@ const addLineComment = async () => {
   if (!newLineComment.value.trim() || !selectedFile.value) {
     return
   }
+
+  const normalizedRange = normalizeRange(lineCommentData.value.start, lineCommentData.value.end)
   
   await store.addLineComment(selectedFile.value.id, {
     text: newLineComment.value,
-    startLine: lineCommentData.value.start,
-    endLine: lineCommentData.value.end
+    startLine: normalizedRange.start,
+    endLine: normalizedRange.end
   })
   
   newLineComment.value = ''
@@ -178,16 +305,18 @@ const shareLineToChat = async () => {
   if (!selectedLineShareRoomId.value || !selectedFile.value) {
     return
   }
+
+  const normalizedRange = normalizeRange(lineShareData.value.start, lineShareData.value.end)
   
   const codeLines = selectedFile.value.content?.split('\n') || []
   const snippetContent = codeLines
-    .slice(lineShareData.value.start - 1, lineShareData.value.end)
+    .slice(normalizedRange.start - 1, normalizedRange.end)
     .join('\n')
   
   await store.addLineCodeSnippetMessage(projectId.value, selectedLineShareRoomId.value, {
     fileName: selectedFile.value.filepath || selectedFile.value.name,
-    startLine: lineShareData.value.start,
-    endLine: lineShareData.value.end,
+    startLine: normalizedRange.start,
+    endLine: normalizedRange.end,
     content: snippetContent
   })
   
@@ -236,6 +365,105 @@ const handleShareToChat = async () => {
   flex: 1;
   overflow-y: auto;
   max-height: 100vh;
+}
+
+.version-panel {
+  margin-top: 1rem;
+  background: #ffffff;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.version-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.version-header h3 {
+  margin: 0;
+}
+
+.version-controls {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.version-list {
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.version-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0.6rem;
+  background: #f9fafb;
+}
+
+.version-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.meta {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.version-note {
+  margin-top: 0.3rem;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.version-tags {
+  margin-top: 0.35rem;
+  display: flex;
+  gap: 0.35rem;
+}
+
+.tag-pill {
+  font-size: 0.75rem;
+  background: #dbeafe;
+  color: #1d4ed8;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+}
+
+.version-actions {
+  margin-top: 0.45rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.danger-btn {
+  padding: 0.45rem 0.7rem;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  background: #dc2626;
+  cursor: pointer;
+}
+
+.diff-box {
+  margin-top: 0.8rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 0.75rem;
+  border-radius: 6px;
+  max-height: 280px;
+  overflow: auto;
+  font-size: 0.83rem;
 }
 
 .modal-overlay {

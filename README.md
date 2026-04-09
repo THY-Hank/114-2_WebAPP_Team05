@@ -16,6 +16,8 @@
 | **即時聊天室** | Django Channels + WebSocket；可自訂成員或開放全專案 |
 | **Share to Chat** | 從程式碼檢視區選取行數後直接分享至聊天室，可點擊跳回指定行 |
 | **行級留言** | 在程式碼旁對指定行範圍留言，支援多行選取 |
+| **檔案版本歷史** | 每次儲存產生新版本；可查歷史、比對任兩版差異、回復舊版 |
+| **版本標記 (Tag/Snapshot)** | 可替版本加註記與里程碑標籤，快速定位重要版本 |
 | **個人頁面** | 登入後查看 Email、名稱、所屬專案列表 |
 | **RWD 響應式佈局** | 全 Flexbox / Viewport 自適應；> 900px 左右分屏，手機端折疊 |
 
@@ -25,7 +27,36 @@
 
 - **敏感金鑰解耦 (`.env`)** — `SECRET_KEY`、`AES_KEY`、`AES_IV`、`DEBUG` 均由環境變數掛載，不進版控。  
 - **AES-CBC 密碼加密** — 前端以 AES CBC Padding 加密後再傳送；後端解密後再以 PBKDF2 儲存。  
-- **Session-based Auth** — Django Session 保持登入狀態；CSRF 豁免僅限開發環境 API（`@csrf_exempt`）。
+- **JWT-based Auth** — 登入後取得 Access Token，前端以 `Authorization: Bearer <token>` 呼叫受保護 API。
+- **CAPTCHA 雙模式** — 開發環境使用本地 demo CAPTCHA；生產環境切換 Google reCAPTCHA v3。
+
+---
+
+## 📅 今日更新 (2026-04-09)
+
+### 1) 檔案版本歷史（使用者功能）
+
+- 新增 `CodeFileVersion` 模型，記錄版本號、內容、變更者、備註、Tag、Snapshot、時間。
+- 每次在 Code Viewer 按下 Save 會建立新版本。
+- 舊檔案若沒有歷史，首次開啟版本頁會自動補一筆初始版本（backfill）。
+
+### 2) 版本比較 / 回復 / 里程碑
+
+- 支援任兩版 Diff（unified diff）。
+- 支援一鍵 Revert 到任一歷史版本（回復後會新增一筆回復版本，保留完整審計軌跡）。
+- 支援版本備註與 Tag/Snapshot 標記。
+
+### 3) 權限規則（安全）
+
+- 只有專案成員可查看版本歷史與 Diff。
+- 只有專案 Owner 可回復版本。
+- 只有專案 Owner 可設定 Tag/Snapshot。
+
+### 4) reCAPTCHA 登入/註冊防機器人
+
+- 前端登入/註冊加入 CAPTCHA token 流程。
+- 後端驗證 `recaptchaToken`，開發環境可無縫使用 demo 模式。
+
 
 ---
 
@@ -68,6 +99,13 @@ cd backend
 # DEBUG=True
 # AES_KEY=team05_secret_key_12345678901234
 # AES_IV=team05_shared_iv
+# DB_NAME=chatdev
+# DB_USER=postgres
+# DB_PASSWORD=your_postgres_password
+# DB_HOST=127.0.0.1
+# DB_PORT=5432
+# JWT_SECRET=your_jwt_secret
+# JWT_ACCESS_MINUTES=60
 
 # 遷移資料庫
 ../venv/Scripts/activate

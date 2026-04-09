@@ -296,7 +296,6 @@ describe('Project Settings', () => {
     })
 
     it('removes member from store', async () => {
-      const store = useMainStore()
       const members = [
         { id: 1, name: 'Owner', email: 'owner@example.com', isOwner: true },
         { id: 2, name: 'Jane', email: 'jane@example.com', isOwner: false }
@@ -309,13 +308,11 @@ describe('Project Settings', () => {
 
       const response = await projectsApi.removeProjectMember(1, 2)
       expect(response.ok).toBe(true)
-      
+
       // Simulate removing member from local state
-      if (response.ok) {
-        const updatedMembers = members.filter(m => m.id !== 2)
-        expect(updatedMembers.length).toBe(1)
-        expect(updatedMembers[0]?.id).toBe(1)
-      }
+      const updatedMembers = members.filter(m => m.id !== 2)
+      expect(updatedMembers.length).toBe(1)
+      expect(updatedMembers[0]?.id).toBe(1)
     })
   })
 

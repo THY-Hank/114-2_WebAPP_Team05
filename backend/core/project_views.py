@@ -1,9 +1,10 @@
 import json
 import os
+import difflib
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from .models import Project, CodeFile, FileComment
+from .models import Project, CodeFile, FileComment, CodeFileVersion
 from chat.models import ChatRoom
 from user.models import CustomUser
 from .user_views import login_check
@@ -28,6 +29,31 @@ def _build_unique_filepath(project, filepath):
         candidate = os.path.join(base_path, renamed) if base_path else renamed
         counter += 1
     return candidate
+
+
+def _create_file_version(code_file, user, note='', is_snapshot=False, tag_name=''):
+    latest = code_file.versions.order_by('-version_number').first()
+    next_version = 1 if latest is None else latest.version_number + 1
+    return CodeFileVersion.objects.create(
+        file=code_file,
+        version_number=next_version,
+        content=code_file.content,
+        changed_by=user,
+        change_note=note or '',
+        is_snapshot=is_snapshot,
+        tag_name=tag_name or '',
+    )
+
+
+def _is_project_owner(user, project):
+    return user.id == project.owner_id
+
+
+def _file_access_or_404(file_id, user):
+    try:
+        return CodeFile.objects.get(id=file_id, project__members=user)
+    except CodeFile.DoesNotExist:
+        return None
 
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
@@ -78,6 +104,36 @@ def file_detail_view(request, file_id):
         
     code_file.delete()
     return HttpResponse(status=204)
+
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+@login_check
+def update_file_content_view(request, file_id):
+    code_file = _file_access_or_404(file_id, request.user)
+    if code_file is None:
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    data = json.loads(request.body)
+    content = data.get('content')
+    note = data.get('note', '')
+    if content is None:
+        return JsonResponse({'error': 'content is required'}, status=400)
+
+    code_file.content = content
+    code_file.size_bytes = len(content.encode('utf-8'))
+    code_file.is_binary = False
+    code_file.save(update_fields=['content', 'size_bytes', 'is_binary'])
+
+    version = _create_file_version(code_file, request.user, note=note)
+    return JsonResponse({
+        'id': code_file.id,
+        'name': code_file.name,
+        'filepath': code_file.filepath,
+        'content': code_file.content,
+        'sizeBytes': code_file.size_bytes,
+        'latestVersion': version.version_number,
+    }, status=200)
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -208,6 +264,7 @@ def project_files_view(request, project_id):
             size_bytes=size_bytes,
             is_binary=is_binary,
         )
+        _create_file_version(new_file, request.user, note='Initial version')
         return JsonResponse({
             'id': new_file.id,
             'name': new_file.name,
@@ -218,6 +275,136 @@ def project_files_view(request, project_id):
             'isBinary': new_file.is_binary,
             'comments': [],
         }, status=201)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@login_check
+def file_versions_view(request, file_id):
+    code_file = _file_access_or_404(file_id, request.user)
+    if code_file is None:
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    if not code_file.versions.exists():
+        _create_file_version(code_file, request.user, note='Initial version (backfill)')
+
+    versions = []
+    for v in code_file.versions.select_related('changed_by').all():
+        versions.append({
+            'id': v.id,
+            'versionNumber': v.version_number,
+            'createdAt': v.created_at.isoformat(),
+            'changedBy': (v.changed_by.name or v.changed_by.email) if v.changed_by else 'Unknown',
+            'changedById': v.changed_by_id,
+            'note': v.change_note,
+            'tagName': v.tag_name,
+            'isSnapshot': v.is_snapshot,
+        })
+    return JsonResponse(versions, safe=False, status=200)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@login_check
+def file_versions_diff_view(request, file_id):
+    code_file = _file_access_or_404(file_id, request.user)
+    if code_file is None:
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    from_id = request.GET.get('fromVersionId')
+    to_id = request.GET.get('toVersionId')
+    if not from_id or not to_id:
+        return JsonResponse({'error': 'fromVersionId and toVersionId are required'}, status=400)
+
+    try:
+        from_v = CodeFileVersion.objects.get(id=from_id, file=code_file)
+        to_v = CodeFileVersion.objects.get(id=to_id, file=code_file)
+    except CodeFileVersion.DoesNotExist:
+        return JsonResponse({'error': 'Version not found'}, status=404)
+
+    diff = difflib.unified_diff(
+        from_v.content.splitlines(),
+        to_v.content.splitlines(),
+        fromfile=f'v{from_v.version_number}',
+        tofile=f'v{to_v.version_number}',
+        lineterm=''
+    )
+
+    return JsonResponse({
+        'fromVersion': from_v.version_number,
+        'toVersion': to_v.version_number,
+        'diff': '\n'.join(diff),
+    }, status=200)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_check
+def file_version_snapshot_view(request, file_id, version_id):
+    code_file = _file_access_or_404(file_id, request.user)
+    if code_file is None:
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    if not _is_project_owner(request.user, code_file.project):
+        return JsonResponse({'error': 'Only project owner can tag/snapshot versions'}, status=403)
+
+    try:
+        version = CodeFileVersion.objects.get(id=version_id, file=code_file)
+    except CodeFileVersion.DoesNotExist:
+        return JsonResponse({'error': 'Version not found'}, status=404)
+
+    data = json.loads(request.body)
+    tag_name = data.get('tagName', '').strip()
+    is_snapshot = bool(data.get('isSnapshot', True))
+
+    version.tag_name = tag_name
+    version.is_snapshot = is_snapshot
+    version.save(update_fields=['tag_name', 'is_snapshot'])
+
+    return JsonResponse({
+        'id': version.id,
+        'versionNumber': version.version_number,
+        'tagName': version.tag_name,
+        'isSnapshot': version.is_snapshot,
+    }, status=200)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_check
+def file_revert_view(request, file_id):
+    code_file = _file_access_or_404(file_id, request.user)
+    if code_file is None:
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    if not _is_project_owner(request.user, code_file.project):
+        return JsonResponse({'error': 'Only project owner can revert versions'}, status=403)
+
+    data = json.loads(request.body)
+    version_id = data.get('versionId')
+    note = data.get('note', '')
+    if not version_id:
+        return JsonResponse({'error': 'versionId is required'}, status=400)
+
+    try:
+        target = CodeFileVersion.objects.get(id=version_id, file=code_file)
+    except CodeFileVersion.DoesNotExist:
+        return JsonResponse({'error': 'Version not found'}, status=404)
+
+    code_file.content = target.content
+    code_file.size_bytes = len(target.content.encode('utf-8'))
+    code_file.is_binary = False
+    code_file.save(update_fields=['content', 'size_bytes', 'is_binary'])
+
+    revert_note = note.strip() or f'Reverted to version {target.version_number}'
+    new_version = _create_file_version(code_file, request.user, note=revert_note)
+
+    return JsonResponse({
+        'message': 'File reverted successfully',
+        'fileId': code_file.id,
+        'content': code_file.content,
+        'latestVersion': new_version.version_number,
+    }, status=200)
 
 @csrf_exempt
 @require_http_methods(["POST"])
