@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: team05
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/OWNER/Team05HW-backend:latest
+          imagePullPolicy: Always

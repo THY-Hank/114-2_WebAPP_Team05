@@ -30,29 +30,26 @@
 - **JWT-based Auth** — 登入後取得 Access Token，前端以 `Authorization: Bearer <token>` 呼叫受保護 API。
 - **CAPTCHA 雙模式** — 開發環境使用本地 demo CAPTCHA；生產環境切換 Google reCAPTCHA v3。
 
----
 
-## 📅 今日更新 (2026-04-09)
-
-### 1) 檔案版本歷史（使用者功能）
+## 檔案版本歷史（使用者功能）
 
 - 新增 `CodeFileVersion` 模型，記錄版本號、內容、變更者、備註、Tag、Snapshot、時間。
 - 每次在 Code Viewer 按下 Save 會建立新版本。
 - 舊檔案若沒有歷史，首次開啟版本頁會自動補一筆初始版本（backfill）。
 
-### 2) 版本比較 / 回復 / 里程碑
+## 版本比較 / 回復 / 里程碑
 
 - 支援任兩版 Diff（unified diff）。
 - 支援一鍵 Revert 到任一歷史版本（回復後會新增一筆回復版本，保留完整審計軌跡）。
 - 支援版本備註與 Tag/Snapshot 標記。
 
-### 3) 權限規則（安全）
+## 權限規則（安全）
 
 - 只有專案成員可查看版本歷史與 Diff。
 - 只有專案 Owner 可回復版本。
 - 只有專案 Owner 可設定 Tag/Snapshot。
 
-### 4) reCAPTCHA 登入/註冊防機器人
+## reCAPTCHA 登入/註冊防機器人
 
 - 前端登入/註冊加入 CAPTCHA token 流程。
 - 後端驗證 `recaptchaToken`，開發環境可無縫使用 demo 模式。
@@ -69,6 +66,105 @@
 | **Backend Tests & Lint** | Python 3.12、flake8 語法檢查、`python manage.py test user chat core` |
 | **Frontend Code Quality** | Node 20、TypeScript 型別檢查、ESLint、`npm run build` |
 | **Frontend Unit Tests** | Vitest + Pinia mock；測試所有前端 store action 與 UI 元件 |
+
+### Docker + Kubernetes CD（新增）
+
+本專案已加入完整容器化與 K8s 部署骨架：
+
+- `docker-compose.yml`：本地一次啟動 `frontend + backend + postgres`
+- `backend/Dockerfile`：Django/Channels（Daphne）映像
+- `frontend/Dockerfile` + `frontend/nginx.conf`：Vue build 後由 Nginx 服務，並反向代理 `/api`、`/ws`
+- `k8s/base`：共用 manifests（namespace、configmap、postgres、backend、frontend、ingress）
+- `k8s/overlays/dev`：本機開發環境 patch（本機 image、單副本、DEBUG=True）
+- `k8s/overlays/prod`：正式環境 patch（GHCR image、多副本、DEBUG=False）
+- `.github/workflows/CD.yaml`：push 到 `main/master` 後自動 Build 映像、推送 GHCR、部署 `k8s/overlays/prod`
+
+---
+
+## 🐳 本地 Docker 驗證
+
+```bash
+docker compose up --build -d
+```
+
+服務：
+
+- 前端：http://localhost:8080
+- 後端（由前端代理）：`/api/*`
+- WebSocket（由前端代理）：`/ws/*`
+
+關閉：
+
+```bash
+docker compose down
+```
+
+---
+
+## ☸️ Kubernetes 部署
+
+1. 先建立 `k8s/secret.yaml`（可參考 `k8s/secret.example.yaml`）。
+2. 修改 `k8s/overlays/dev/patch-ingress.yaml` 與 `k8s/overlays/prod/patch-ingress.yaml` 的 host。
+3. 本機（dev overlay）部署：
+
+```bash
+kubectl apply -f k8s/secret.yaml
+kubectl apply -k k8s/overlays/dev
+```
+
+4. 正式（prod overlay）手動部署：
+
+```bash
+kubectl apply -f k8s/secret.yaml
+kubectl apply -k k8s/overlays/prod
+```
+
+> `k8s/overlays/prod/patch-backend.yaml` 與 `k8s/overlays/prod/patch-frontend.yaml` 的 image 預設是 placeholder：
+> `ghcr.io/OWNER/Team05HW-backend:latest`、`ghcr.io/OWNER/Team05HW-frontend:latest`
+
+### 本機 Dev 一鍵腳本
+
+安全建議（避免外洩）：
+
+1. 複製範本：`cp .env.k8s.dev.example .env.k8s.dev`
+2. 在 `.env.k8s.dev` 填入你自己的值
+3. 再執行 `bash scripts/k8s-dev-up.sh`
+
+`.gitignore` 已包含 `.env.*`，所以 `.env.k8s.dev` 不會被 push 到 GitHub。
+
+若你偏好 CI/terminal 注入，也可在執行前設定環境變數：
+
+- `SECRET_KEY`
+- `DB_PASSWORD`
+- `JWT_SECRET`
+- `AES_KEY`
+- `AES_IV`
+
+---
+
+可用以下腳本快速操作本機 K8s dev 環境：
+
+- `bash scripts/k8s-dev-up.sh`：讀取 `.env.k8s.dev` 建立/更新 secret，套用 `k8s/overlays/dev`，檢查 rollout
+- `bash scripts/k8s-dev-up.sh --port-forward`：同上，最後直接啟動 port-forward 到 `http://localhost:8080`
+- `bash scripts/k8s-dev-up.sh --secret-file <path>`：指定其他本機 secret 檔
+- `bash scripts/k8s-dev-status.sh`：查看 pod / service / ingress 狀態
+- `bash scripts/k8s-dev-down.sh`：刪除 dev overlay 資源
+- `bash scripts/k8s-dev-down.sh --purge-secret`：刪除 dev overlay 資源並移除 secret
+
+
+
+## 🔐 GitHub Actions CD 需要的 Secrets(未完成)
+
+`CD.yaml` 會使用以下 repository secrets：
+
+- `KUBE_CONFIG`：叢集 kubeconfig 的 base64 內容
+- `SECRET_KEY`
+- `DB_PASSWORD`
+- `JWT_SECRET`
+- `AES_KEY`
+- `AES_IV`
+
+並透過 `GITHUB_TOKEN` 將映像推送到 GHCR（需保留 workflow 的 `packages: write` 權限）。
 
 ---
 

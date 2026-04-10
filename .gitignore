@@ -1,6 +1,13 @@
 *.ini
 node_modules/
 venv/
+
+# Secret env files
 .env
 .env.*
+
+# Allow safe templates to be tracked
+!.env.example
+!.env.*.example
+
 .DS_Store

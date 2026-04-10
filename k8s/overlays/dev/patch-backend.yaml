@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: team05
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: backend
+          image: team05hw-backend:latest
+          imagePullPolicy: IfNotPresent
