@@ -1,0 +1,27 @@
+# Git
+.git
+.gitignore
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# Node
+frontend/node_modules/
+
+# Build artifacts
+frontend/dist/
+backend/staticfiles/
+
+# Env files
+*.env
+backend/.env
+frontend/.env
+
+# IDE
+.vscode/
+.idea/

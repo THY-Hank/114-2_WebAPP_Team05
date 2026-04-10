@@ -7,7 +7,7 @@
 1. 使用Postgres SQL
 
 # 第五組組員分工情況
-楊宗瀚 50%  reCAPTCHA製作、Postgres SQL、將版本控制加入app
+楊宗瀚 50%  reCAPTCHA製作、Postgres SQL、將版本控制加入app、docker、k8s
 
 顧庭維 50%  
 

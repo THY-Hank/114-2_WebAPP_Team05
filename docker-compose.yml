@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: team05-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chatdev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chatdev"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: team05-backend
+    restart: unless-stopped
+    environment:
+      SECRET_KEY: change-me-in-prod
+      DEBUG: "False"
+      DB_NAME: chatdev
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      JWT_SECRET: change-me-in-prod
+      JWT_ACCESS_MINUTES: "60"
+      AES_KEY: team05_secret_key_12345678901234
+      AES_IV: team05_shared_iv
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: team05-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  pg_data:

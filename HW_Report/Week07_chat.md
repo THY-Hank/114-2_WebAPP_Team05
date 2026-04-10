@@ -15,6 +15,7 @@ with Copilot auto
 權限與安全（使用者功能）
 只有專案成員可看歷史
 只有有權限的人可還原
+6. 建立docker、k8s、CD流程
 # 顧庭維
 with chatpgt 5.4 plus
 1. 

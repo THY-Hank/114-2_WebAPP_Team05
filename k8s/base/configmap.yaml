@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: team05
+data:
+  DEBUG: "False"
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_NAME: chatdev
+  DB_USER: postgres
+  JWT_ACCESS_MINUTES: "60"
