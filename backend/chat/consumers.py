@@ -30,6 +30,8 @@ def _can_access_room(user, room_id):
     return ChatRoom.objects.filter(id=room_id, members=user).exists()
 
 class ChatConsumer(AsyncWebsocketConsumer):
+    room_presence = {}
+
     async def connect(self):
         self.room_id = self.scope['url_route']['kwargs']['room_id']
         self.room_group_name = f'chat_{self.room_id}'
@@ -47,18 +49,42 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
         await self.accept()
+        await self._track_presence(joined=True)
 
     async def disconnect(self, close_code):
         # Leave room group
+        await self._track_presence(joined=False)
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
         )
 
     async def receive(self, text_data):
-        # We handle incoming messages via the standard REST API
-        # Only used if frontend tries to send via WS natively
-        pass
+        try:
+            payload = json.loads(text_data or '{}')
+        except json.JSONDecodeError:
+            return
+
+        action = payload.get('action')
+        user = self.scope.get('resolved_user')
+        if not user or not getattr(user, 'is_authenticated', False):
+            return
+
+        if action == 'typing':
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'chat_event',
+                    'payload': {
+                        'action': 'typing',
+                        'payload': {
+                            'userId': user.id,
+                            'userName': user.name or user.email,
+                            'isTyping': bool(payload.get('isTyping', False)),
+                        }
+                    }
+                }
+            )
 
     async def chat_message(self, event):
         payload = event['payload']
@@ -71,4 +97,58 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             'action': event['payload'].get('action'),
             'payload': event['payload'].get('payload')
+        }))
+
+    async def _track_presence(self, *, joined):
+        user = self.scope.get('resolved_user')
+        if not user or not getattr(user, 'is_authenticated', False):
+            return
+
+        room_state = self.room_presence.setdefault(self.room_id, {})
+        active_channels = room_state.setdefault(user.id, set())
+        if joined:
+            active_channels.add(self.channel_name)
+        else:
+            active_channels.discard(self.channel_name)
+            if not active_channels:
+                room_state.pop(user.id, None)
+        if not room_state:
+            self.room_presence.pop(self.room_id, None)
+
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'chat_event',
+                'payload': {
+                    'action': 'presence',
+                    'payload': {
+                        'onlineUserIds': list(room_state.keys()),
+                    }
+                }
+            }
+        )
+
+
+class NotificationConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        resolved_user = await _resolve_user(self.scope)
+        self.scope['resolved_user'] = resolved_user
+
+        if not resolved_user or not getattr(resolved_user, 'is_authenticated', False):
+            await self.close(code=4401)
+            return
+
+        self.notification_group_name = f'notifications_{resolved_user.id}'
+        await self.channel_layer.group_add(self.notification_group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        user = self.scope.get('resolved_user')
+        if user and getattr(user, 'is_authenticated', False):
+            await self.channel_layer.group_discard(self.notification_group_name, self.channel_name)
+
+    async def notification_event(self, event):
+        await self.send(text_data=json.dumps({
+            'action': event['payload'].get('action'),
+            'payload': event['payload'].get('payload'),
         }))

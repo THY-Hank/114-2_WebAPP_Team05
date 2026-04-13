@@ -41,41 +41,33 @@
         <div>
           <div class="chat-header-title-row">
             <h2 v-if="!isEditingRoomName">{{ selectedRoom.name }}</h2>
-            <input
-              v-else
-              v-model="editedRoomName"
-              class="room-edit-input"
-              @keyup.enter="saveRoomName"
-            />
+            <input v-else v-model="editedRoomName" class="room-edit-input" @keyup.enter="saveRoomName" />
             <button class="subtle-btn" @click="toggleRoomEdit">
               {{ isEditingRoomName ? 'Cancel' : 'Rename' }}
             </button>
-            <button
-              v-if="isEditingRoomName"
-              class="subtle-btn"
-              :disabled="!editedRoomName.trim()"
-              @click="saveRoomName"
-            >
+            <button v-if="isEditingRoomName" class="subtle-btn" :disabled="!editedRoomName.trim()" @click="saveRoomName">
               Save
             </button>
-            <button
-              v-if="selectedRoom.name !== 'General'"
-              class="danger-link"
-              @click="removeRoom"
-            >
+            <button v-if="selectedRoom.name !== 'General'" class="danger-link" @click="removeRoom">
               Delete
             </button>
           </div>
           <p class="chat-header-meta">
-            {{ pinnedMessages.length }} pinned · {{ filteredMessages.length }} visible messages
+            {{ pinnedMessages.length }} pinned · {{ filteredMessages.length }} visible · {{ onlineMembers.length }} online
           </p>
+          <div class="online-strip">
+            <span
+              v-for="member in selectedRoom.members || []"
+              :key="member.id"
+              class="member-presence"
+              :class="{ online: store.onlineUserIds.includes(member.id) }"
+            >
+              {{ member.name || member.email.split('@')[0] }}
+            </span>
+          </div>
         </div>
         <div class="chat-tools">
-          <input
-            v-model="searchQuery"
-            placeholder="Search messages, snippets, mentions"
-            class="search-input"
-          />
+          <input v-model="searchQuery" placeholder="Search messages, snippets, mentions" class="search-input" />
           <button class="secondary-tool-btn" @click="showShareModal = true">Share Snippet</button>
         </div>
       </header>
@@ -84,37 +76,63 @@
         <div v-for="message in pinnedMessages" :key="`pinned-${message.id}`" class="pinned-card">
           <span class="pinned-label">Pinned</span>
           <strong>{{ message.author }}</strong>
-          <p>{{ message.text || message.codeSnippet?.fileName }}</p>
+          <p>{{ message.text || message.codeSnippet?.fileName || message.attachment?.name }}</p>
         </div>
       </div>
 
       <div class="chat-box">
-        <div v-for="message in filteredMessages" :key="message.id" class="message">
+        <div v-for="message in filteredMessages" :key="message.id" class="message" :class="{ deleted: message.isDeleted }">
+          <div v-if="message.replyTo" class="reply-preview">
+            Replying to {{ message.replyTo.author }}: {{ message.replyTo.text }}
+          </div>
+
           <div class="message-header">
             <div>
               <strong class="author">{{ message.author }}</strong>
               <span class="message-meta">
                 {{ formatTimestamp(message.createdAt) }}
+                <span v-if="message.editedAt"> · edited</span>
                 <span v-if="message.readByCount"> · read by {{ message.readByCount }}</span>
               </span>
             </div>
-            <button class="pin-btn" @click="togglePinned(message)">
-              {{ message.isPinned ? 'Unpin' : 'Pin' }}
-            </button>
+            <div class="message-actions">
+              <button class="pin-btn" @click="togglePinned(message)">
+                {{ message.isPinned ? 'Unpin' : 'Pin' }}
+              </button>
+              <button class="pin-btn" :disabled="message.isDeleted" @click="startReply(message)">Reply</button>
+              <button
+                v-if="canManageMessage(message) && !message.isDeleted"
+                class="pin-btn"
+                @click="startEditMessage(message)"
+              >
+                Edit
+              </button>
+              <button
+                v-if="canManageMessage(message) && !message.isDeleted"
+                class="danger-link"
+                @click="deleteMessage(message)"
+              >
+                Delete
+              </button>
+            </div>
           </div>
 
-          <p v-if="message.text" class="message-text">
+          <template v-if="editingMessageId === message.id">
+            <textarea v-model="editingMessageText" class="message-edit-box" />
+            <div class="inline-actions">
+              <button class="secondary-tool-btn" @click="saveMessageEdit(message)">Save</button>
+              <button class="subtle-btn" @click="cancelMessageEdit">Cancel</button>
+            </div>
+          </template>
+
+          <p v-else-if="message.text" class="message-text">
             <template v-for="(segment, index) in highlightMentions(message.text)" :key="`${message.id}-${index}`">
               <span v-if="segment.isMention" class="mention-chip">{{ segment.value }}</span>
               <span v-else>{{ segment.value }}</span>
             </template>
           </p>
 
-          <div
-            v-if="message.codeSnippet"
-            class="code-snippet"
-            @click="viewCodeSnippet(message.codeSnippet)"
-          >
+          <div v-if="message.codeSnippet" class="code-snippet" @click="viewCodeSnippet(message.codeSnippet)">
             <div class="code-snippet-header">
               <strong>{{ message.codeSnippet.fileName }}</strong>
               <span class="line-range">
@@ -127,6 +145,20 @@
             </div>
             <pre v-if="message.codeSnippet.content" class="code-snippet-content"><code>{{ message.codeSnippet.content }}</code></pre>
           </div>
+
+          <a
+            v-if="message.attachment"
+            class="attachment-card"
+            :href="message.attachment.url"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <img v-if="message.attachment.isImage" :src="message.attachment.url" :alt="message.attachment.name" class="attachment-preview" />
+            <div>
+              <strong>{{ message.attachment.name }}</strong>
+              <p>{{ message.attachment.contentType || 'Attachment' }}</p>
+            </div>
+          </a>
         </div>
       </div>
 
@@ -142,13 +174,33 @@
         </button>
       </div>
 
-      <div class="chat-input">
-        <input
+      <p v-if="typingLabel" class="typing-label">{{ typingLabel }}</p>
+
+      <div v-if="replyingToMessage" class="replying-banner">
+        <span>Replying to {{ replyingToMessage.author }}: {{ (replyingToMessage.text || replyingToMessage.attachment?.name || '').slice(0, 80) }}</span>
+        <button class="danger-link" @click="clearReply">Cancel</button>
+      </div>
+
+      <div v-if="selectedAttachment" class="attachment-pending">
+        <span>Attachment ready: {{ selectedAttachment.name }}</span>
+        <button class="danger-link" @click="clearAttachment">Remove</button>
+      </div>
+
+      <div class="chat-input-area">
+        <textarea
           v-model="newMessage"
           placeholder="Type a message... try @teammate"
-          @keyup.enter="sendMessage"
+          class="chat-textarea"
+          @input="handleMessageInput"
+          @keydown.enter.exact.prevent="sendMessage"
         />
-        <button @click="sendMessage">Send</button>
+        <div class="chat-input-actions">
+          <label class="attachment-btn">
+            Attach
+            <input type="file" class="hidden-input" @change="handleAttachmentChange" />
+          </label>
+          <button @click="sendMessage">Send</button>
+        </div>
       </div>
     </section>
 
@@ -169,7 +221,7 @@
             @click="toggleMember(member.id)"
           >
             <span class="member-option-name">{{ member.name || member.email }}</span>
-            <span v-if="selectedMemberIds.includes(member.id)" class="member-option-checkmark">✓</span>
+            <span v-if="selectedMemberIds.includes(member.id)" class="member-option-checkmark">Selected</span>
           </div>
         </div>
         <div class="modal-actions">
@@ -203,6 +255,11 @@ const showMemberModal = ref(false)
 const isEditingRoomName = ref(false)
 const editedRoomName = ref('')
 const selectedMemberIds = ref<number[]>([])
+const replyingToMessage = ref<any | null>(null)
+const selectedAttachment = ref<File | null>(null)
+const editingMessageId = ref<number | null>(null)
+const editingMessageText = ref('')
+const typingTimeoutId = ref<number | null>(null)
 
 const projectId = computed(() => Number(route.params.projectId))
 const selectedRoom = computed(() => store.chatRooms.find((room) => room.id === selectedRoomId.value) || null)
@@ -231,6 +288,16 @@ const projectMembers = computed(() => {
   return proj ? proj.members || [] : []
 })
 
+const currentProject = computed(() => {
+  if (!store.currentUser) return null
+  return store.currentUser.projects.find((p: any) => p.id === projectId.value) || null
+})
+
+const onlineMembers = computed(() => {
+  const members = selectedRoom.value?.members || []
+  return members.filter((member: any) => store.onlineUserIds.includes(member.id))
+})
+
 const pinnedMessages = computed(() => (selectedRoom.value?.messages || []).filter((message: any) => message.isPinned))
 
 const filteredMessages = computed(() => {
@@ -246,6 +313,7 @@ const filteredMessages = computed(() => {
       message.text,
       message.codeSnippet?.fileName,
       message.codeSnippet?.content,
+      message.attachment?.name,
       ...(message.mentions || []).map((mention: any) => mention.label),
     ]
       .filter(Boolean)
@@ -271,8 +339,19 @@ const mentionSuggestions = computed(() => {
     .slice(0, 5)
 })
 
+const typingLabel = computed(() => {
+  const roomId = selectedRoomId.value
+  if (!roomId) return ''
+  const typingUsers = store.typingUsersByRoom[roomId] || []
+  if (typingUsers.length === 0) return ''
+  if (typingUsers.length === 1) return `${typingUsers[0]?.userName || 'Someone'} is typing...`
+  return `${typingUsers.map((entry) => entry.userName).join(', ')} are typing...`
+})
+
 const selectChatRoom = (room: any) => {
   selectedRoomId.value = room.id
+  clearReply()
+  cancelMessageEdit()
 }
 
 const createChatRoom = async () => {
@@ -296,11 +375,20 @@ const toggleMember = (memberId: number) => {
 }
 
 const sendMessage = async () => {
-  if (newMessage.value.trim() !== '' && selectedRoom.value) {
-    await store.addChatMessage(projectId.value, selectedRoom.value.id, newMessage.value)
-    newMessage.value = ''
-    await store.markChatRoomRead(projectId.value, selectedRoom.value.id)
+  if ((!newMessage.value.trim() && !selectedAttachment.value) || !selectedRoom.value) {
+    return
   }
+
+  await store.addChatMessage(projectId.value, selectedRoom.value.id, {
+    text: newMessage.value.trim() || undefined,
+    replyToMessageId: replyingToMessage.value?.id || null,
+    attachment: selectedAttachment.value,
+  })
+  newMessage.value = ''
+  clearReply()
+  clearAttachment()
+  stopTyping()
+  await store.markChatRoomRead(projectId.value, selectedRoom.value.id)
 }
 
 const viewCodeSnippet = (codeSnippet: any) => {
@@ -355,6 +443,53 @@ const togglePinned = async (message: any) => {
   await store.pinChatMessage(projectId.value, selectedRoom.value.id, message.id, !message.isPinned)
 }
 
+const startReply = (message: any) => {
+  replyingToMessage.value = message
+}
+
+const clearReply = () => {
+  replyingToMessage.value = null
+}
+
+const handleAttachmentChange = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  selectedAttachment.value = input.files?.[0] || null
+}
+
+const clearAttachment = () => {
+  selectedAttachment.value = null
+}
+
+const startEditMessage = (message: any) => {
+  editingMessageId.value = message.id
+  editingMessageText.value = message.text || ''
+}
+
+const cancelMessageEdit = () => {
+  editingMessageId.value = null
+  editingMessageText.value = ''
+}
+
+const saveMessageEdit = async (message: any) => {
+  if (!selectedRoom.value) return
+  const updated = await store.updateChatMessage(projectId.value, selectedRoom.value.id, message.id, editingMessageText.value)
+  if (updated) {
+    cancelMessageEdit()
+  }
+}
+
+const deleteMessage = async (message: any) => {
+  if (!selectedRoom.value) return
+  const confirmed = confirm('Delete this message?')
+  if (!confirmed) return
+  await store.deleteChatMessage(projectId.value, selectedRoom.value.id, message.id)
+}
+
+const canManageMessage = (message: any) => {
+  const isOwner = currentProject.value?.owner_id === store.currentUser?.id
+  return message.authorId === store.currentUser?.id || isOwner
+}
+
 const applyMention = (member: any) => {
   const mentionLabel = member.name || member.email.split('@')[0]
   newMessage.value = newMessage.value.replace(/@([A-Za-z0-9._-]*)$/, `@${mentionLabel} `)
@@ -371,7 +506,28 @@ const formatTimestamp = (value: string) => {
   return new Date(value).toLocaleString()
 }
 
+const stopTyping = () => {
+  if (!selectedRoom.value) return
+  store.sendTyping(selectedRoom.value.id, false)
+  if (typingTimeoutId.value) {
+    window.clearTimeout(typingTimeoutId.value)
+    typingTimeoutId.value = null
+  }
+}
+
+const handleMessageInput = () => {
+  if (!selectedRoom.value) return
+  store.sendTyping(selectedRoom.value.id, !!newMessage.value.trim())
+  if (typingTimeoutId.value) {
+    window.clearTimeout(typingTimeoutId.value)
+  }
+  typingTimeoutId.value = window.setTimeout(() => {
+    stopTyping()
+  }, 1500)
+}
+
 onUnmounted(() => {
+  stopTyping()
   if (store.chatSocket) {
     store.chatSocket.close()
     store.chatSocket = null
@@ -382,29 +538,50 @@ onUnmounted(() => {
 <style scoped>
 @import '@/assets/chat.css';
 
-.chat-sidebar-header {
+.chat-sidebar-header,
+.chat-header,
+.chat-header-title-row,
+.chat-tools,
+.message-header,
+.message-actions,
+.modal-actions,
+.chat-input-actions,
+.inline-actions {
   display: flex;
+  gap: 0.75rem;
+}
+
+.chat-sidebar-header,
+.message-header {
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: center;
+}
+
+.chat-header {
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: 1rem;
 }
 
-.sidebar-eyebrow {
+.chat-header-title-row {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sidebar-eyebrow,
+.pinned-label {
   margin: 0 0 0.3rem;
   font-size: 0.72rem;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #6a87a2;
 }
 
-.chat-sidebar-header h3 {
-  margin: 0;
-}
-
-.sidebar-meta {
-  margin: 0;
+.sidebar-eyebrow,
+.sidebar-meta,
+.chat-header-meta,
+.message-meta,
+.typing-label {
   color: #70859a;
-  font-size: 0.82rem;
 }
 
 .chat-room-item {
@@ -414,25 +591,20 @@ onUnmounted(() => {
   gap: 0.75rem;
 }
 
-.chat-room-item strong {
-  display: block;
-  color: #16304a;
-}
-
-.chat-room-item p {
-  margin: 0.2rem 0 0;
-  font-size: 0.82rem;
-  color: #6f8094;
-}
-
 .chat-room-item.active {
   background: #dceefc;
+}
+
+.room-badge,
+.mention-chip,
+.member-presence,
+.attachment-btn {
+  border-radius: 999px;
 }
 
 .room-badge {
   min-width: 1.55rem;
   padding: 0.2rem 0.4rem;
-  border-radius: 999px;
   background: #d14f3f;
   color: white;
   text-align: center;
@@ -440,42 +612,31 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-.chat-header {
+.online-strip,
+.mention-suggestions {
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
-  margin-bottom: 1rem;
-}
-
-.chat-header-title-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
+  margin-top: 0.75rem;
 }
 
-.chat-header-title-row h2 {
-  margin: 0;
+.member-presence {
+  padding: 0.28rem 0.65rem;
+  background: #eef3f8;
+  color: #5c7085;
+  font-size: 0.78rem;
 }
 
-.chat-header-meta {
-  margin: 0.4rem 0 0;
-  color: #70859a;
-  font-size: 0.88rem;
-}
-
-.chat-tools {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  flex-wrap: wrap;
+.member-presence.online {
+  background: #ddf7ea;
+  color: #146c4a;
 }
 
 .search-input,
 .room-edit-input,
 .room-name-input,
-.chat-input input {
+.chat-textarea,
+.message-edit-box {
   border: 1px solid #d4dde8;
   border-radius: 12px;
   padding: 0.75rem 0.9rem;
@@ -490,21 +651,27 @@ onUnmounted(() => {
 .secondary-tool-btn,
 .pin-btn,
 .create-btn,
-.select-members-btn {
+.select-members-btn,
+.chat-input-actions button,
+.primary-btn,
+.cancel-btn {
   border-radius: 999px;
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease;
 }
 
 .subtle-btn,
-.pin-btn {
+.pin-btn,
+.cancel-btn {
   border: 1px solid #cad6e2;
   background: white;
   color: #34526d;
   padding: 0.45rem 0.8rem;
 }
 
-.secondary-tool-btn {
+.secondary-tool-btn,
+.chat-input-actions button,
+.primary-btn,
+.attachment-btn {
   border: none;
   background: #1e88a8;
   color: white;
@@ -536,16 +703,7 @@ onUnmounted(() => {
 .pinned-label {
   display: inline-block;
   margin-bottom: 0.4rem;
-  font-size: 0.72rem;
-  font-weight: 700;
   color: #8c6a07;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.pinned-card p {
-  margin: 0.35rem 0 0;
-  color: #5a4a1e;
 }
 
 .message {
@@ -559,17 +717,8 @@ onUnmounted(() => {
   margin-top: 0.8rem;
 }
 
-.message-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: center;
-}
-
-.message-meta {
-  margin-left: 0.45rem;
-  color: #7a8ea2;
-  font-size: 0.82rem;
+.message.deleted {
+  background: #f9fbfd;
 }
 
 .message-text {
@@ -581,30 +730,78 @@ onUnmounted(() => {
 .mention-chip {
   display: inline-block;
   padding: 0.02rem 0.38rem;
-  border-radius: 999px;
   background: #e0f3ff;
   color: #0f6392;
   font-weight: 600;
 }
 
-.mention-suggestions {
+.reply-preview,
+.replying-banner,
+.attachment-pending {
+  margin-bottom: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 14px;
+  background: #f4f8fb;
+  color: #486174;
+  font-size: 0.9rem;
+}
+
+.message-edit-box,
+.chat-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 88px;
+  resize: vertical;
+}
+
+.code-snippet,
+.attachment-card {
+  margin-top: 0.7rem;
+  display: block;
+  padding: 0.85rem 0.95rem;
+  border-radius: 14px;
+  border: 1px solid #dce5ef;
+  background: #f8fbff;
+  text-decoration: none;
+  color: inherit;
+}
+
+.code-snippet-header {
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.9rem;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
-.mention-option {
-  border: 1px solid #cfe3f0;
-  background: #f4fbff;
-  color: #1a6e94;
-  border-radius: 999px;
-  padding: 0.45rem 0.8rem;
-  cursor: pointer;
+.code-snippet-content {
+  margin: 0.65rem 0 0;
+  white-space: pre-wrap;
 }
 
-.chat-input {
-  grid-template-columns: 1fr auto;
+.attachment-preview {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-bottom: 0.65rem;
+}
+
+.chat-input-area {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.chat-input-actions {
+  justify-content: flex-end;
+}
+
+.attachment-btn {
+  display: inline-flex;
+  align-items: center;
+}
+
+.hidden-input {
+  display: none;
 }
 
 .empty-chat {
@@ -654,30 +851,6 @@ onUnmounted(() => {
 .member-option--selected {
   background: #e7f6ef;
   border-color: #82c8a8;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-}
-
-.primary-btn,
-.cancel-btn {
-  border-radius: 999px;
-  padding: 0.7rem 1rem;
-  cursor: pointer;
-}
-
-.primary-btn {
-  border: none;
-  background: #1f8c72;
-  color: white;
-}
-
-.cancel-btn {
-  border: 1px solid #ced8e2;
-  background: white;
 }
 
 @media (max-width: 960px) {

@@ -13,6 +13,10 @@ export const useMainStore = defineStore('main', {
     chatRooms: [] as any[],
     invitations: [] as any[],
     chatSocket: null as WebSocket | null,
+    notificationSocket: null as WebSocket | null,
+    notifications: [] as any[],
+    onlineUserIds: [] as number[],
+    typingUsersByRoom: {} as Record<number, Array<{ userId: number; userName: string }>>,
   }),
   getters: {
     isLoggedIn: (state) => !!state.currentUser,
@@ -46,6 +50,8 @@ export const useMainStore = defineStore('main', {
         if (res.ok) {
           this.invitations = await res.json()
         }
+        await this.loadNotifications()
+        this.connectNotificationSocket()
       } catch (err) {
         console.error("Failed to load dashboard data", err)
       }
@@ -93,9 +99,16 @@ export const useMainStore = defineStore('main', {
         this.files = []
         this.chatRooms = []
         this.invitations = []
+        this.notifications = []
+        this.onlineUserIds = []
+        this.typingUsersByRoom = {}
         if (this.chatSocket) {
           this.chatSocket.close()
           this.chatSocket = null
+        }
+        if (this.notificationSocket) {
+          this.notificationSocket.close()
+          this.notificationSocket = null
         }
       } catch (err) {
         console.error('Logout error:', err)
@@ -267,9 +280,9 @@ export const useMainStore = defineStore('main', {
       }
       return false
     },
-    async addChatMessage(projectId: number, roomId: number, message: string) {
+    async addChatMessage(projectId: number, roomId: number, payload: { text?: string; replyToMessageId?: number | null; attachment?: File | null }) {
       try {
-        const response = await chatApi.addChatMessage(projectId, roomId, message)
+        const response = await chatApi.addChatMessage(projectId, roomId, payload)
         if (response.ok) {
           const newMsg = await response.json()
           const room = this.chatRooms.find((r) => r.id === roomId)
@@ -284,6 +297,49 @@ export const useMainStore = defineStore('main', {
       } catch (err) {
         console.error("Add chat message error", err)
       }
+    },
+    async updateChatMessage(projectId: number, roomId: number, messageId: number, text: string) {
+      try {
+        const response = await chatApi.updateChatMessage(projectId, roomId, messageId, text)
+        if (response.ok) {
+          const updated = await response.json()
+          const room = this.chatRooms.find((r) => r.id === roomId)
+          if (room) {
+            const index = room.messages.findIndex((m: any) => m.id === messageId)
+            if (index !== -1) {
+              room.messages[index] = updated
+            }
+          }
+          return updated
+        }
+      } catch (err) {
+        console.error('Update chat message error', err)
+      }
+      return null
+    },
+    async deleteChatMessage(projectId: number, roomId: number, messageId: number) {
+      try {
+        const response = await chatApi.deleteChatMessage(projectId, roomId, messageId)
+        if (response.ok || response.status === 204) {
+          const room = this.chatRooms.find((r) => r.id === roomId)
+          if (room) {
+            const index = room.messages.findIndex((m: any) => m.id === messageId)
+            if (index !== -1) {
+              room.messages[index] = {
+                ...room.messages[index],
+                text: 'This message was deleted.',
+                isDeleted: true,
+                attachment: null,
+                codeSnippet: null,
+              }
+            }
+          }
+          return true
+        }
+      } catch (err) {
+        console.error('Delete chat message error', err)
+      }
+      return false
     },
     async addCodeSnippetMessage(projectId: number, roomId: number, codeSnippet: { fileName: string, line?: number }) {
       try {
@@ -449,6 +505,66 @@ export const useMainStore = defineStore('main', {
       }
       return null
     },
+    async loadNotifications() {
+      try {
+        const response = await chatApi.fetchNotifications()
+        if (response.ok) {
+          this.notifications = await response.json()
+        }
+      } catch (err) {
+        console.error('Load notifications error', err)
+      }
+    },
+    async markNotificationRead(notificationId: number) {
+      try {
+        const response = await chatApi.markNotificationRead(notificationId)
+        if (response.ok) {
+          const updated = await response.json()
+          const index = this.notifications.findIndex((notification: any) => notification.id === notificationId)
+          if (index !== -1) {
+            this.notifications[index] = updated
+          }
+          return updated
+        }
+      } catch (err) {
+        console.error('Mark notification read error', err)
+      }
+      return null
+    },
+    connectNotificationSocket() {
+      if (this.notificationSocket || !this.currentUser) {
+        return
+      }
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const token = getAuthToken()
+      const wsUrl = token
+        ? `${protocol}//${window.location.host}/ws/notifications/?token=${encodeURIComponent(token)}`
+        : `${protocol}//${window.location.host}/ws/notifications/`
+      this.notificationSocket = new WebSocket(wsUrl)
+      this.notificationSocket.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+        if (data.action === 'notification_created') {
+          this.notifications.unshift(data.payload)
+        }
+      }
+      this.notificationSocket.onclose = () => {
+        this.notificationSocket = null
+      }
+    },
+    sendTyping(roomId: number, isTyping: boolean) {
+      if (!this.chatSocket || this.chatSocket.readyState !== WebSocket.OPEN) {
+        return
+      }
+      this.chatSocket.send(JSON.stringify({
+        action: 'typing',
+        isTyping,
+      }))
+      if (!isTyping) {
+        this.typingUsersByRoom[roomId] = (this.typingUsersByRoom[roomId] || []).filter(
+          (entry) => entry.userId !== this.currentUser?.id
+        )
+      }
+    },
     connectWebSocket(roomId: number) {
       if (this.chatSocket) {
         this.chatSocket.close()
@@ -473,16 +589,32 @@ export const useMainStore = defineStore('main', {
           if (!exists) {
             room.messages.push(data.payload)
           }
+          room.lastMessageAt = data.payload.createdAt
         } else if (data.action === 'message_updated') {
           const messageIndex = room.messages.findIndex((m: any) => m.id === data.payload.id)
           if (messageIndex !== -1) {
             room.messages[messageIndex] = data.payload
           }
+        } else if (data.action === 'presence') {
+          this.onlineUserIds = data.payload.onlineUserIds || []
+        } else if (data.action === 'typing') {
+          const entries = this.typingUsersByRoom[roomId] || []
+          const filtered = entries.filter((entry) => entry.userId !== data.payload.userId)
+          if (data.payload.isTyping && data.payload.userId !== this.currentUser?.id) {
+            filtered.push({
+              userId: data.payload.userId,
+              userName: data.payload.userName,
+            })
+          }
+          this.typingUsersByRoom[roomId] = filtered
         }
       }
       
       this.chatSocket.onerror = (error) => {
         console.error("WebSocket error:", error)
+      }
+      this.chatSocket.onclose = () => {
+        this.chatSocket = null
       }
     },
   },
