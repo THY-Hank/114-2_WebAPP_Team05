@@ -51,7 +51,7 @@ describe('Chat Store Actions', () => {
       json: async () => ({ id: 10, text: 'Hello' })
     })
 
-    await store.addChatMessage(1, 1, 'Hello')
+    await store.addChatMessage(1, 1, { text: 'Hello' })
     expect(store.chatRooms[0].messages.length).toBe(1)
     expect(store.chatRooms[0].messages[0].text).toBe('Hello')
   })

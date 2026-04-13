@@ -20,6 +20,7 @@
           <li><router-link to="/projects/new">New Project</router-link></li>
           <li v-if="projectId"><router-link :to="`/projects/${projectId}/code`">Current Code View</router-link></li>
           <li v-if="projectId"><router-link :to="`/projects/${projectId}/settings`">Project Settings</router-link></li>
+          <li><NotificationCenter /></li>
           <li>
             <router-link to="/invitations">
               Invitations Inbox
@@ -42,6 +43,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useMainStore } from '@/stores/main'
 import { useRouter, useRoute } from 'vue-router'
 import PersonalInfoModal from '@/components/PersonalInfoModal.vue'
+import NotificationCenter from '@/components/NotificationCenter.vue'
 
 type CurrentUser = {
   name: string
