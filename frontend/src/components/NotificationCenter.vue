@@ -28,6 +28,21 @@ import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useMainStore } from '@/stores/main'
 
+type NotificationItem = {
+  id: number
+  type: string
+  text: string
+  createdAt: string
+  isRead: boolean
+  roomId?: number | null
+  projectId?: number | string | null
+}
+
+type ChatRoomPreview = {
+  id: number
+  projectId?: number | string | null
+}
+
 const store = useMainStore()
 const router = useRouter()
 const route = useRoute()
@@ -39,16 +54,21 @@ const labelMap: Record<string, string> = {
   room_invite: 'Room invite',
 }
 
-const unreadCount = computed(() => store.notifications.filter((notification: any) => !notification.isRead).length)
+const unreadCount = computed(() =>
+  (store.notifications as NotificationItem[]).filter((notification) => !notification.isRead).length
+)
 
 const formatTime = (value: string) => new Date(value).toLocaleString()
 
-const openNotification = async (notification: any) => {
+const openNotification = async (notification: NotificationItem) => {
   if (!notification.isRead) {
     await store.markNotificationRead(notification.id)
   }
   if (notification.roomId) {
-    const projectId = notification.projectId || route.params.projectId || store.chatRooms.find((room: any) => room.id === notification.roomId)?.projectId
+    const projectId =
+      notification.projectId ||
+      route.params.projectId ||
+      (store.chatRooms as ChatRoomPreview[]).find((room) => room.id === notification.roomId)?.projectId
     if (projectId) {
       router.push(`/projects/${projectId}/chat`)
     }
