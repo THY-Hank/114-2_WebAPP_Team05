@@ -4,6 +4,11 @@ WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm ci
 
+ARG VITE_AES_KEY
+ARG VITE_AES_IV
+ENV VITE_AES_KEY=$VITE_AES_KEY
+ENV VITE_AES_IV=$VITE_AES_IV
+
 COPY frontend/ ./
 RUN npm run build
 

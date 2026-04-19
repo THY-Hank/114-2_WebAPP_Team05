@@ -2,47 +2,44 @@ name: Docker Build and K8s Deploy
 
 on:
   workflow_call:
-  # push:
-  #   branches: ["main", "master"]
+  push:
+    branches: ["main"]
 
 permissions:
   contents: read
-  packages: write
+  id-token: write # Required for OIDC, though we use keys for now
 
 env:
-  REGISTRY: ghcr.io
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
-      owner_lc: ${{ steps.owner.outputs.owner_lc }}
-      repo_name_lc: ${{ steps.owner.outputs.repo_name_lc }}
+      ecr_registry: ${{ steps.login-ecr.outputs.registry }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Compute image names
-        id: owner
-        run: |
-          echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
-          REPO_NAME="${GITHUB_REPOSITORY#*/}"
-          echo "repo_name_lc=${REPO_NAME,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set image tag
         id: meta
         run: echo "image_tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push backend image
         uses: docker/build-push-action@v6
@@ -51,8 +48,8 @@ jobs:
           file: backend/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ steps.owner.outputs.owner_lc }}/${{ steps.owner.outputs.repo_name_lc }}-backend:${{ steps.meta.outputs.image_tag }}
-            ${{ env.REGISTRY }}/${{ steps.owner.outputs.owner_lc }}/${{ steps.owner.outputs.repo_name_lc }}-backend:latest
+            ${{ steps.login-ecr.outputs.registry }}/team05-backend:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.login-ecr.outputs.registry }}/team05-backend:latest
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
@@ -60,9 +57,12 @@ jobs:
           context: .
           file: frontend/Dockerfile
           push: true
+          build-args: |
+            VITE_AES_KEY=${{ secrets.AES_KEY }}
+            VITE_AES_IV=${{ secrets.AES_IV }}
           tags: |
-            ${{ env.REGISTRY }}/${{ steps.owner.outputs.owner_lc }}/${{ steps.owner.outputs.repo_name_lc }}-frontend:${{ steps.meta.outputs.image_tag }}
-            ${{ env.REGISTRY }}/${{ steps.owner.outputs.owner_lc }}/${{ steps.owner.outputs.repo_name_lc }}-frontend:latest
+            ${{ steps.login-ecr.outputs.registry }}/team05-frontend:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.login-ecr.outputs.registry }}/team05-frontend:latest
 
   deploy:
     runs-on: ubuntu-latest
@@ -72,13 +72,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
-
-      - name: Configure kubeconfig
-        run: |
-          mkdir -p "$HOME/.kube"
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > "$HOME/.kube/config"
 
       - name: Create or update app secret
         run: |
@@ -87,6 +92,9 @@ jobs:
             -n team05 \
             --from-literal=SECRET_KEY='${{ secrets.SECRET_KEY }}' \
             --from-literal=DB_PASSWORD='${{ secrets.DB_PASSWORD }}' \
+            --from-literal=DB_HOST='${{ secrets.DB_HOST }}' \
+            --from-literal=DB_NAME='${{ secrets.DB_NAME }}' \
+            --from-literal=DB_USER='${{ secrets.DB_USER }}' \
             --from-literal=JWT_SECRET='${{ secrets.JWT_SECRET }}' \
             --from-literal=AES_KEY='${{ secrets.AES_KEY }}' \
             --from-literal=AES_IV='${{ secrets.AES_IV }}' \
@@ -99,11 +107,22 @@ jobs:
       - name: Set release images
         run: |
           kubectl set image deployment/backend \
-            backend=${{ env.REGISTRY }}/${{ needs.build-and-push.outputs.owner_lc }}/${{ needs.build-and-push.outputs.repo_name_lc }}-backend:${{ needs.build-and-push.outputs.image_tag }} \
+            backend=${{ needs.build-and-push.outputs.ecr_registry }}/team05-backend:${{ needs.build-and-push.outputs.image_tag }} \
             -n team05
           kubectl set image deployment/frontend \
-            frontend=${{ env.REGISTRY }}/${{ needs.build-and-push.outputs.owner_lc }}/${{ needs.build-and-push.outputs.repo_name_lc }}-frontend:${{ needs.build-and-push.outputs.image_tag }} \
+            frontend=${{ needs.build-and-push.outputs.ecr_registry }}/team05-frontend:${{ needs.build-and-push.outputs.image_tag }} \
             -n team05
+
+      - name: Run database migrations
+        run: |
+          # Wait for at least one backend pod to be ready
+          echo "Waiting for backend pod to be ready..."
+          kubectl wait --for=condition=ready pod -l app=backend -n team05 --timeout=120s
+          
+          # Find the ready backend pod and run migrate
+          BACKEND_POD=$(kubectl get pods -n team05 -l app=backend -o jsonpath="{.items[0].metadata.name}")
+          echo "Running migrations on $BACKEND_POD..."
+          kubectl exec -n team05 $BACKEND_POD -- python manage.py migrate --noinput
 
       - name: Rollout status
         run: |
