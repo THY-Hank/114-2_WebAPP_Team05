@@ -2,7 +2,7 @@ name: Docker Build and K8s Deploy
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "addCD"]
 
 permissions:
   contents: read

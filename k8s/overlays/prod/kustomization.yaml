@@ -6,7 +6,6 @@ patches:
   - path: patch-configmap.yaml
   - path: patch-backend.yaml
   - path: patch-frontend.yaml
-  - path: patch-ingress.yaml
   - target:
       kind: Deployment
       name: postgres
