@@ -117,16 +117,15 @@ jobs:
             frontend=$REGISTRY/team05hwfrontend:$TAG \
             -n team05
 
-      - name: Run database migrations
-        run: |
-          echo "Waiting for backend pod to be ready..."
-          kubectl wait --for=condition=ready pod -l app=backend -n team05 --timeout=120s
-          
-          BACKEND_POD=$(kubectl get pods -n team05 -l app=backend -o jsonpath="{.items[0].metadata.name}")
-          echo "Running migrations on $BACKEND_POD..."
-          kubectl exec -n team05 $BACKEND_POD -- python manage.py migrate --noinput
-
       - name: Rollout status
         run: |
+          echo "Waiting for deployments to stabilize..."
           kubectl rollout status deployment/backend -n team05 --timeout=180s
           kubectl rollout status deployment/frontend -n team05 --timeout=180s
+
+      - name: Run database migrations
+        run: |
+          # Now that rollout is successful, we can pick any ready pod
+          BACKEND_POD=$(kubectl get pods -n team05 -l app=backend -o jsonpath="{.items[0].metadata.name}")
+          echo "Rollout ready. Running migrations on $BACKEND_POD..."
+          kubectl exec -n team05 $BACKEND_POD -- python manage.py migrate --noinput
