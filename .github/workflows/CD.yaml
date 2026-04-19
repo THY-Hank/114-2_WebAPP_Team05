@@ -2,11 +2,15 @@ name: Docker Build and K8s Deploy
 
 on:
   push:
-    branches: ["main", "addCD"]
+    branches: ["main"]
+
+permissions:
+  contents: read
+  id-token: write # Required for OIDC, though we use keys for now
 
 env:
-  AWS_REGION: ap-southeast-2
-  EKS_CLUSTER_NAME: team05hwcluster
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
 
 jobs:
   build-and-push:
