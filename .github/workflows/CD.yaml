@@ -48,8 +48,8 @@ jobs:
           file: backend/Dockerfile
           push: true
           tags: |
-            ${{ steps.login-ecr.outputs.registry }}/team05-backend:${{ steps.meta.outputs.image_tag }}
-            ${{ steps.login-ecr.outputs.registry }}/team05-backend:latest
+            ${{ steps.login-ecr.outputs.registry }}/team05hwbackend:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.login-ecr.outputs.registry }}/team05hwbackend:latest
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
@@ -61,8 +61,8 @@ jobs:
             VITE_AES_KEY=${{ secrets.AES_KEY }}
             VITE_AES_IV=${{ secrets.AES_IV }}
           tags: |
-            ${{ steps.login-ecr.outputs.registry }}/team05-frontend:${{ steps.meta.outputs.image_tag }}
-            ${{ steps.login-ecr.outputs.registry }}/team05-frontend:latest
+            ${{ steps.login-ecr.outputs.registry }}/team05hwfrontend:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.login-ecr.outputs.registry }}/team05hwfrontend:latest
 
   deploy:
     runs-on: ubuntu-latest
@@ -107,10 +107,10 @@ jobs:
       - name: Set release images
         run: |
           kubectl set image deployment/backend \
-            backend=${{ needs.build-and-push.outputs.ecr_registry }}/team05-backend:${{ needs.build-and-push.outputs.image_tag }} \
+            backend=${{ needs.build-and-push.outputs.ecr_registry }}/team05hwbackend:${{ needs.build-and-push.outputs.image_tag }} \
             -n team05
           kubectl set image deployment/frontend \
-            frontend=${{ needs.build-and-push.outputs.ecr_registry }}/team05-frontend:${{ needs.build-and-push.outputs.image_tag }} \
+            frontend=${{ needs.build-and-push.outputs.ecr_registry }}/team05hwfrontend:${{ needs.build-and-push.outputs.image_tag }} \
             -n team05
 
       - name: Run database migrations
