@@ -1,8 +1,9 @@
 name: Docker Build and K8s Deploy
 
 on:
-  push:
-    branches: ["main"]
+#要使用把這裡打開
+  # push:
+  #   branches: ["main"]
 
 permissions:
   contents: read
