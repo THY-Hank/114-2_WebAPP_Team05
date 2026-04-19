@@ -7,3 +7,13 @@ patches:
   - path: patch-backend.yaml
   - path: patch-frontend.yaml
   - path: patch-ingress.yaml
+  - target:
+      kind: Deployment
+      name: postgres
+    patch: |-
+      $patch: delete
+  - target:
+      kind: Service
+      name: postgres
+    patch: |-
+      $patch: delete
