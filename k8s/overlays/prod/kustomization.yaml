@@ -11,9 +11,17 @@ patches:
       kind: Deployment
       name: postgres
     patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: postgres
       $patch: delete
   - target:
       kind: Service
       name: postgres
     patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: postgres
       $patch: delete
